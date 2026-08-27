@@ -1,0 +1,2889 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>知药 · 智能服药助手（电脑版）</title>
+    <style>
+        /* ===== 全局重置 & 适老基础（适配大屏） ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        :root {
+            --orange: #FF8C00;
+            --orange-light: #FFB347;
+            --blue: #2F5597;
+            --blue-light: #4A7BBF;
+            --green: #32CD32;
+            --green-dark: #28A428;
+            --gold: #FFD700;
+            --red: #FF0000;
+            --red-light: #FF4444;
+            --bg-warm: #FFF8F0;
+            --bg-white: #FFFFFF;
+            --text-dark: #1A1A1A;
+            --text-gray: #555555;
+            --shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            --radius: 24px;
+            --font-base: 24px;
+            --btn-min-height: 80px;
+        }
+        html,
+        body {
+            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            font-size: var(--font-base);
+            background: #e8e0d8;
+            color: var(--text-dark);
+            height: 100%;
+            width: 100%;
+            line-height: 1.5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+
+        /* 主容器 – 宽屏适配 */
+        .app-container {
+            width: 100%;
+            max-width: 1400px;
+            height: 100%;
+            max-height: 100vh;
+            background: var(--bg-warm);
+            border-radius: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            position: relative;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 页面容器 – 绝对定位，撑满 */
+        .page {
+            display: none;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: var(--bg-warm);
+            overflow-y: auto;
+            padding: 30px 40px 40px 40px;
+            transition: opacity 0.25s ease;
+            z-index: 1;
+        }
+        .page.active {
+            display: flex;
+            z-index: 10;
+        }
+        /* 语音问药、拍照识药等大内容页使用流式布局，防止flex压缩导致重叠 */
+        .page.flow-layout.active {
+            display: block;
+        }
+        .page.flow-layout > * {
+            flex-shrink: 0;
+        }
+        .page-fade {
+            animation: fadeIn 0.25s ease forwards;
+        }
+        @keyframes fadeIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.97);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        /* 滚动条美化 */
+        .page::-webkit-scrollbar {
+            width: 6px;
+        }
+        .page::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .page::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 8px;
+        }
+
+        /* ===== 通用组件 ===== */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0 20px 0;
+            flex-shrink: 0;
+            min-height: 80px;
+        }
+        .top-bar .back-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: var(--bg-white);
+            border: 2px solid #ddd;
+            font-size: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-dark);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            transition: 0.15s;
+            flex-shrink: 0;
+        }
+        .top-bar .back-btn:hover {
+            background: #f0f0f0;
+        }
+        .top-bar .back-btn:active {
+            transform: scale(0.92);
+        }
+        .top-bar .page-title {
+            font-size: 38px;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: 2px;
+            flex: 1;
+            text-align: center;
+            padding: 0 20px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .top-bar .right-placeholder {
+            width: 80px;
+            flex-shrink: 0;
+        }
+
+        .big-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: var(--btn-min-height);
+            border-radius: var(--radius);
+            border: none;
+            font-size: 30px;
+            font-weight: 600;
+            padding: 18px 36px;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            gap: 16px;
+            color: #fff;
+            touch-action: manipulation;
+            user-select: none;
+        }
+        .big-btn:hover {
+            transform: scale(1.02);
+            opacity: 0.92;
+        }
+        .big-btn:active {
+            transform: scale(0.96);
+        }
+        .big-btn.primary {
+            background: var(--orange);
+        }
+        .big-btn.primary-dark {
+            background: var(--blue);
+        }
+        .big-btn.success {
+            background: var(--green-dark);
+        }
+        .big-btn.danger {
+            background: var(--red);
+            animation: pulseRed 1.8s infinite;
+        }
+        .big-btn.gold {
+            background: var(--gold);
+            color: #333;
+        }
+        .big-btn.outline {
+            background: transparent;
+            border: 3px solid var(--blue);
+            color: var(--blue);
+        }
+        .big-btn.outline-white {
+            background: transparent;
+            border: 3px solid #fff;
+            color: #fff;
+        }
+        @keyframes pulseRed {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 0 20px rgba(255, 0, 0, 0);
+            }
+        }
+
+        .card {
+            background: var(--bg-white);
+            border-radius: var(--radius);
+            padding: 28px 30px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .card-title {
+            font-size: 30px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-dark);
+        }
+        .card-sub {
+            font-size: 24px;
+            color: var(--text-gray);
+        }
+
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        .grid-3col {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        .grid-4col {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+        }
+
+        .flex-1 {
+            flex: 1;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .text-muted {
+            color: var(--text-gray);
+        }
+        .mt-16 {
+            margin-top: 16px;
+        }
+        .mt-24 {
+            margin-top: 24px;
+        }
+        .mb-16 {
+            margin-bottom: 16px;
+        }
+        .gap-16 {
+            gap: 16px;
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* ===== 登录/注册 ===== */
+        .auth-logo {
+            text-align: center;
+            padding: 30px 0 20px 0;
+        }
+        .auth-logo .logo-icon {
+            font-size: 90px;
+        }
+        .auth-logo h1 {
+            font-size: 52px;
+            font-weight: 800;
+            color: var(--blue);
+            margin-top: 4px;
+        }
+        .auth-logo p {
+            font-size: 28px;
+            color: var(--text-gray);
+            margin-top: 6px;
+        }
+        .auth-box {
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        .auth-box .big-btn {
+            margin-top: 16px;
+            width: 100%;
+        }
+        .auth-box .switch-link {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 26px;
+        }
+        .auth-box .switch-link span {
+            color: var(--blue);
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 8px 16px;
+        }
+        .input-group {
+            margin-bottom: 24px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 26px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-dark);
+        }
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 20px 24px;
+            font-size: 28px;
+            border-radius: 18px;
+            border: 2px solid #ddd;
+            background: #fff;
+            outline: none;
+            transition: 0.2s;
+            font-family: inherit;
+            color: var(--text-dark);
+            min-height: 76px;
+        }
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 6px rgba(47, 85, 151, 0.15);
+        }
+
+        /* ===== 老人端首页 ===== */
+        .elderly-hero {
+            text-align: center;
+            padding: 16px 0 12px 0;
+        }
+        .elderly-hero .greeting {
+            font-size: 42px;
+            font-weight: 700;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .elderly-hero .sub-greeting {
+            font-size: 28px;
+            color: var(--text-gray);
+        }
+        .elderly-grid .grid-item {
+            background: var(--bg-white);
+            border-radius: var(--radius);
+            padding: 32px 16px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: 0.15s;
+            border: 3px solid transparent;
+            min-height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .elderly-grid .grid-item:hover {
+            border-color: var(--orange);
+            transform: translateY(-4px);
+        }
+        .elderly-grid .grid-item:active {
+            transform: scale(0.95);
+        }
+        .elderly-grid .grid-item .icon {
+            font-size: 68px;
+        }
+        .elderly-grid .grid-item .label {
+            font-size: 30px;
+            font-weight: 600;
+            margin-top: 8px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .elderly-grid .grid-item.sos-item {
+            background: var(--red);
+            color: #fff;
+            border-color: var(--red);
+        }
+        .elderly-grid .grid-item.sos-item .label {
+            color: #fff;
+        }
+        .elderly-grid .grid-item.sos-item:hover {
+            background: #cc0000;
+            border-color: #cc0000;
+        }
+
+        /* ===== 语音问药 ===== */
+        .voice-status {
+            background: var(--bg-white);
+            border-radius: var(--radius);
+            padding: 50px 30px;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+        .voice-status .mic-icon {
+            font-size: 90px;
+            display: inline-block;
+            width: 140px;
+            height: 140px;
+            line-height: 140px;
+            border-radius: 50%;
+            background: var(--orange);
+            color: #fff;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 20px rgba(255, 140, 0, 0.35);
+        }
+        .voice-status .mic-icon:hover {
+            transform: scale(1.05);
+        }
+        .voice-status .mic-icon:active {
+            transform: scale(0.92);
+        }
+        .voice-status .mic-icon.recording {
+            animation: micPulse 1s infinite;
+            background: var(--red);
+        }
+        @keyframes micPulse {
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 0 30px rgba(255, 0, 0, 0);
+            }
+        }
+        .voice-result {
+            margin-top: 24px;
+            padding: 24px;
+            background: #f8f4f0;
+            border-radius: var(--radius);
+            min-height: 140px;
+        }
+        .voice-result .answer-text {
+            font-size: 32px;
+            line-height: 1.6;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        .voice-result .answer-img {
+            margin-top: 16px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .voice-result .answer-img .tag {
+            padding: 14px 28px;
+            border-radius: 40px;
+            font-size: 26px;
+            font-weight: 600;
+        }
+        .tag-safe {
+            background: var(--green);
+            color: #fff;
+        }
+        .tag-danger {
+            background: var(--red);
+            color: #fff;
+        }
+
+        /* ===== 拍照识药 ===== */
+        .camera-area {
+            background: var(--bg-white);
+            border-radius: var(--radius);
+            padding: 50px 20px;
+            text-align: center;
+            border: 4px dashed #ccc;
+            min-height: 220px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .camera-area:hover {
+            border-color: var(--orange);
+            background: #faf6f0;
+        }
+        .camera-area .cam-icon {
+            font-size: 80px;
+        }
+        .camera-area .cam-hint {
+            font-size: 28px;
+            color: var(--text-gray);
+            margin-top: 10px;
+        }
+        .camera-result {
+            margin-top: 20px;
+        }
+        .drug-result-card {
+            background: #f8f4f0;
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-top: 16px;
+        }
+        .drug-result-card .drug-name {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--blue);
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .drug-result-card .drug-info {
+            font-size: 28px;
+            margin-top: 8px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        /* ===== 吃药提醒列表 ===== */
+        .reminder-item {
+            background: var(--bg-white);
+            border-radius: 18px;
+            padding: 24px 24px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-left: 10px solid var(--orange);
+        }
+        .reminder-item .info .name {
+            font-size: 30px;
+            font-weight: 600;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .reminder-item .info .time {
+            font-size: 26px;
+            color: var(--text-gray);
+        }
+        .reminder-item .info {
+            flex: 1;
+            min-width: 0;
+        }
+        .reminder-item .status-badge {
+            padding: 10px 28px;
+            border-radius: 40px;
+            font-size: 26px;
+            font-weight: 600;
+        }
+        .badge-pending {
+            background: var(--gold);
+            color: #333;
+        }
+        .badge-done {
+            background: var(--green);
+            color: #fff;
+        }
+        .badge-missed {
+            background: var(--red);
+            color: #fff;
+        }
+        .del-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: #f0f0f0;
+            color: var(--text-gray);
+            font-size: 22px;
+            cursor: pointer;
+            transition: 0.15s;
+            user-select: none;
+        }
+        .del-btn:hover {
+            background: var(--red-light);
+            color: #fff;
+        }
+        .del-btn:active {
+            transform: scale(0.88);
+        }
+
+        /* ===== SOS 全屏 ===== */
+        .sos-fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--red);
+            z-index: 9999;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            padding: 40px;
+            animation: sosFlash 1s infinite;
+        }
+        .sos-fullscreen.active {
+            display: flex;
+        }
+        @keyframes sosFlash {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.85;
+            }
+        }
+        .sos-fullscreen .sos-icon {
+            font-size: 150px;
+        }
+        .sos-fullscreen .sos-title {
+            font-size: 64px;
+            font-weight: 800;
+            margin-top: 16px;
+        }
+        .sos-fullscreen .sos-sub {
+            font-size: 34px;
+            margin-top: 12px;
+            opacity: 0.9;
+        }
+        .sos-fullscreen .sos-btn-group {
+            margin-top: 56px;
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ===== 吃药弹窗 ===== */
+        .medication-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9998;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            backdrop-filter: blur(4px);
+        }
+        .medication-popup.active {
+            display: flex;
+        }
+        .medication-popup .popup-card {
+            background: #fff;
+            border-radius: var(--radius);
+            padding: 50px 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            animation: fadeIn 0.3s ease;
+        }
+        .medication-popup .popup-card .med-icon {
+            font-size: 80px;
+        }
+        .medication-popup .popup-card .med-name {
+            font-size: 42px;
+            font-weight: 700;
+            margin: 12px 0;
+            color: var(--blue);
+        }
+        .medication-popup .popup-card .med-time {
+            font-size: 30px;
+            color: var(--text-gray);
+        }
+        .medication-popup .popup-card .btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 32px;
+        }
+
+        /* ===== 辅助端 ===== */
+        .assistant-tabs {
+            display: flex;
+            gap: 12px;
+            background: var(--bg-white);
+            border-radius: var(--radius);
+            padding: 12px 20px;
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            flex-shrink: 0;
+        }
+        .assistant-tabs .tab-item {
+            flex: 1;
+            text-align: center;
+            padding: 16px 12px;
+            border-radius: 16px;
+            font-size: 26px;
+            font-weight: 500;
+            color: var(--text-gray);
+            cursor: pointer;
+            transition: 0.15s;
+            border: none;
+            background: transparent;
+        }
+        .assistant-tabs .tab-item.active {
+            background: var(--blue);
+            color: #fff;
+        }
+        .assistant-tabs .tab-item:hover {
+            background: #eef;
+        }
+        .assistant-tabs .tab-item.active:hover {
+            background: var(--blue);
+        }
+        .assistant-tabs .tab-item:active {
+            transform: scale(0.94);
+        }
+
+        .stat-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-item {
+            background: var(--bg-white);
+            border-radius: 18px;
+            padding: 20px 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        .stat-item .num {
+            font-size: 44px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        .stat-item .lbl {
+            font-size: 24px;
+            color: var(--text-gray);
+        }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .setting-row:last-child {
+            border-bottom: none;
+        }
+        .setting-row .label {
+            font-size: 28px;
+            font-weight: 500;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .setting-row .control {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .setting-row .control select,
+        .setting-row .control input[type="range"] {
+            font-size: 26px;
+            padding: 10px 20px;
+            border-radius: 14px;
+            border: 2px solid #ddd;
+            background: #fff;
+            min-height: 64px;
+            min-width: 150px;
+        }
+        .setting-row .control input[type="range"] {
+            min-width: 200px;
+            accent-color: var(--blue);
+        }
+        .setting-row .control .val {
+            font-size: 26px;
+            font-weight: 600;
+            min-width: 56px;
+        }
+
+        /* ===== 药库查询 ===== */
+        .search-box {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 20px 24px;
+            font-size: 28px;
+            border-radius: 18px;
+            border: 2px solid #ddd;
+            background: #fff;
+            outline: none;
+            min-height: 76px;
+        }
+        .search-box input:focus {
+            border-color: var(--blue);
+        }
+        .search-box .big-btn {
+            flex: 0 0 auto;
+            width: auto;
+            padding: 0 40px;
+        }
+        .drug-item {
+            background: var(--bg-white);
+            border-radius: 18px;
+            padding: 22px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        .drug-item .dname {
+            font-size: 30px;
+            font-weight: 600;
+            color: var(--blue);
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .drug-item .dinfo {
+            font-size: 26px;
+            color: var(--text-gray);
+            margin-top: 6px;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+
+        /* ===== 历史记录 ===== */
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 18px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .history-item .h-time {
+            font-size: 24px;
+            font-weight: 600;
+            min-width: 100px;
+            color: var(--text-gray);
+        }
+        .history-item .h-info {
+            flex: 1;
+        }
+        .history-item .h-info .h-name {
+            font-size: 28px;
+            font-weight: 600;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .history-item .h-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .history-item .h-badge {
+            padding: 8px 24px;
+            border-radius: 40px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        /* ===== SOS 警报横幅 ===== */
+        .sos-alert-banner {
+            background: var(--red);
+            color: #fff;
+            border-radius: var(--radius);
+            padding: 24px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            animation: pulseRed 1.8s infinite;
+        }
+        .sos-alert-banner .sos-icon-sm {
+            font-size: 48px;
+        }
+        .sos-alert-banner .sos-text {
+            font-size: 28px;
+            font-weight: 600;
+            flex: 1;
+        }
+        .sos-alert-banner .sos-time {
+            font-size: 24px;
+            opacity: 0.9;
+        }
+
+        /* ===== 家人绑定 ===== */
+        .family-card {
+            background: var(--bg-white);
+            border-radius: var(--radius);
+            padding: 24px 28px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        .family-card .avatar {
+            font-size: 64px;
+        }
+        .family-card .fname {
+            font-size: 32px;
+            font-weight: 600;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        .family-card .fid {
+            font-size: 24px;
+            color: var(--text-gray);
+        }
+        .family-card .fstatus {
+            margin-left: auto;
+            padding: 8px 24px;
+            border-radius: 40px;
+            font-size: 24px;
+            background: var(--green);
+            color: #fff;
+        }
+
+        /* ===== Toast ===== */
+        .toast {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 18px 40px;
+            border-radius: 50px;
+            font-size: 28px;
+            z-index: 99999;
+            display: none;
+            max-width: 90%;
+            text-align: center;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .toast.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* ===== 语音播报开关 ===== */
+        .speech-toggle {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            background: var(--bg-white);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            cursor: pointer;
+            z-index: 9999;
+            transition: 0.2s;
+            user-select: none;
+            border: 2px solid #eee;
+            touch-action: manipulation;
+        }
+        .speech-toggle:hover {
+            transform: scale(1.06);
+            border-color: var(--orange);
+        }
+        .speech-toggle:active {
+            transform: scale(0.92);
+        }
+        .speech-toggle.muted {
+            background: #f0f0f0;
+            border-color: #ddd;
+            opacity: 0.65;
+        }
+
+        /* ===== 响应式微调 ===== */
+        @media (max-width: 1024px) {
+            .app-container {
+                max-width: 100%;
+                max-height: none;
+                border-radius: 20px;
+            }
+            .page {
+                padding: 20px 24px 30px 24px;
+            }
+            .grid-4col {
+                grid-template-columns: 1fr 1fr;
+            }
+            .grid-3col {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 700px) {
+            body {
+                padding: 0;
+            }
+            .app-container {
+                border-radius: 0;
+                max-height: 100vh;
+            }
+            .top-bar .back-btn {
+                width: 64px;
+                height: 64px;
+                font-size: 30px;
+            }
+            .top-bar .page-title {
+                font-size: 28px;
+            }
+            .big-btn {
+                font-size: 24px;
+                min-height: 64px;
+                padding: 14px 24px;
+            }
+            .grid-2col,
+            .grid-3col,
+            .grid-4col {
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+            }
+            .elderly-grid .grid-item {
+                min-height: 140px;
+                padding: 20px 12px;
+            }
+            .elderly-grid .grid-item .icon {
+                font-size: 48px;
+            }
+            .elderly-grid .grid-item .label {
+                font-size: 24px;
+            }
+            .stat-row {
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 12px;
+            }
+            .stat-item .num {
+                font-size: 32px;
+            }
+            .setting-row {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            .setting-row .control {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            .search-box {
+                flex-wrap: wrap;
+            }
+            .search-box .big-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            .medication-popup .popup-card {
+                padding: 30px 20px;
+            }
+            .medication-popup .popup-card .med-name {
+                font-size: 32px;
+            }
+            .sos-fullscreen .sos-icon {
+                font-size: 100px;
+            }
+            .sos-fullscreen .sos-title {
+                font-size: 42px;
+            }
+            .sos-fullscreen .sos-sub {
+                font-size: 26px;
+            }
+            .speech-toggle {
+                top: 12px;
+                right: 12px;
+                width: 56px;
+                height: 56px;
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== Toast ===== -->
+    <div id="toast" class="toast"></div>
+
+    <!-- ===== 语音播报开关 ===== -->
+    <div id="speechToggle" class="speech-toggle" onclick="toggleSpeech()" title="点击关闭语音播报">🔊</div>
+
+    <!-- ===== 吃药弹窗 ===== -->
+    <div id="medicationPopup" class="medication-popup">
+        <div class="popup-card">
+            <div class="med-icon">💊</div>
+            <div class="med-name" id="popupDrugName">阿莫西林</div>
+            <div class="med-time" id="popupDrugTime">⏰ 08:00 服药时间到</div>
+            <div class="btn-row">
+                <button class="big-btn success" onclick="confirmMedication()">✅ 已经吃了</button>
+                <button class="big-btn gold" onclick="snoozeMedication()">⏰ 晚点吃</button>
+            </div>
+            <button class="big-btn outline mt-16" style="font-size:22px; min-height:60px;" onclick="closeMedicationPopup()">关闭</button>
+        </div>
+    </div>
+
+    <!-- ===== SOS 全屏 ===== -->
+    <div id="sosFullscreen" class="sos-fullscreen">
+        <div class="sos-icon">🆘</div>
+        <div class="sos-title">紧急求助</div>
+        <div class="sos-sub">已通知您的家人和社区服务站</div>
+        <div class="sos-btn-group">
+            <button class="big-btn outline-white" onclick="cancelSOS()">✋ 取消求助（误触）</button>
+            <button class="big-btn" style="background:#fff;color:var(--red);" onclick="cancelSOS()">返回</button>
+        </div>
+    </div>
+
+    <!-- ===== APP容器 ===== -->
+    <div class="app-container">
+
+        <!-- ============================================================ -->
+        <!-- 页面：登录 -->
+        <!-- ============================================================ -->
+        <div id="page-login" class="page active">
+            <div class="auth-logo">
+                <div class="logo-icon">💊</div>
+                <h1>知药</h1>
+                <p>智能服药助手 · 守护长辈健康</p>
+            </div>
+            <div class="auth-box flex-1" style="justify-content:center;display:flex;flex-direction:column;padding:20px 0;">
+                <div class="input-group">
+                    <label>📱 手机号</label>
+                    <input type="tel" id="loginPhone" placeholder="请输入手机号" value="13800008888" />
+                </div>
+                <div class="input-group">
+                    <label>🔒 密码</label>
+                    <input type="password" id="loginPassword" placeholder="请输入密码" value="123456" />
+                </div>
+                <button class="big-btn primary" onclick="handleLogin()">登 录</button>
+                <div class="switch-link">
+                    还没有账号？<span onclick="showPage('page-register')">立即注册</span>
+                </div>
+                <div style="margin-top:30px;font-size:24px;color:var(--text-gray);text-align:center;">
+                    👆 演示账号：13800008888 / 123456
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 页面：注册 -->
+        <!-- ============================================================ -->
+        <div id="page-register" class="page">
+            <div class="top-bar">
+                <button class="back-btn" onclick="goBack()">‹</button>
+                <div class="page-title">注册</div>
+                <div class="right-placeholder"></div>
+            </div>
+            <div class="auth-box flex-1" style="justify-content:center;display:flex;flex-direction:column;padding:10px 0;">
+                <div class="input-group">
+                    <label>📱 手机号</label>
+                    <input type="tel" id="regPhone" placeholder="请输入手机号" />
+                </div>
+                <div class="input-group">
+                    <label>👤 姓名</label>
+                    <input type="text" id="regName" placeholder="请输入您的姓名" />
+                </div>
+                <div class="input-group">
+                    <label>🔒 密码</label>
+                    <input type="password" id="regPassword" placeholder="请设置密码（至少6位）" />
+                </div>
+                <button class="big-btn primary-dark" onclick="handleRegister()">注 册</button>
+                <div class="switch-link">
+                    已有账号？<span onclick="showPage('page-login')">去登录</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 页面：角色选择 -->
+        <!-- ============================================================ -->
+        <div id="page-role" class="page">
+            <div class="top-bar">
+                <div class="right-placeholder"></div>
+                <div class="page-title">选择身份</div>
+                <div class="right-placeholder"></div>
+            </div>
+            <div class="flex-1" style="display:flex;flex-direction:column;justify-content:center;gap:30px;padding:30px 0;max-width:800px;margin:0 auto;width:100%;">
+                <button class="big-btn primary" onclick="enterRole('elderly')" style="font-size:38px;padding:40px;">
+                    👴 老人端
+                    <span style="font-size:26px;font-weight:400;display:block;margin-top:8px;">语音问药 · 拍照识药 · 吃药提醒</span>
+                </button>
+                <button class="big-btn primary-dark" onclick="enterRole('assistant')" style="font-size:38px;padding:40px;">
+                    👨‍👩‍👦 辅助端（子女/看护）
+                    <span style="font-size:26px;font-weight:400;display:block;margin-top:8px;">管理用药 · 接收SOS · 查看记录</span>
+                </button>
+                <button class="big-btn outline" onclick="showPage('page-login')" style="font-size:28px;min-height:70px;">← 返回登录</button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 老人端：首页 -->
+        <!-- ============================================================ -->
+        <div id="page-elderly-home" class="page">
+            <div class="elderly-hero">
+                <div class="greeting">👋 您好，<span id="elderlyUserName">张爷爷</span></div>
+                <div class="sub-greeting">今天也要按时吃药哦 💪</div>
+                <div style="font-size:22px;color:var(--text-gray);margin-top:4px;" id="elderlyDialectDisplay">🗣️ 当前语言：普通话</div>
+            </div>
+            <div class="elderly-grid grid-4col" style="margin-top:16px;">
+                <div class="grid-item" onclick="showPage('page-elderly-voice')">
+                    <div class="icon">🎤</div>
+                    <div class="label">语音问药</div>
+                </div>
+                <div class="grid-item" onclick="showPage('page-elderly-camera')">
+                    <div class="icon">📷</div>
+                    <div class="label">拍照识药</div>
+                </div>
+                <div class="grid-item" onclick="showPage('page-elderly-reminder')">
+                    <div class="icon">⏰</div>
+                    <div class="label">吃药提醒</div>
+                </div>
+                <div class="grid-item sos-item" onclick="triggerSOS()">
+                    <div class="icon">🆘</div>
+                    <div class="label">紧急求助</div>
+                </div>
+            </div>
+            <div class="card mt-16">
+                <div class="card-title">📋 今日服药计划</div>
+                <div id="elderlyTodayReminders">
+                    <div style="font-size:24px;color:var(--text-gray);">加载中...</div>
+                </div>
+            </div>
+            <button class="big-btn outline mt-16" onclick="logout()" style="font-size:26px;min-height:64px;width:auto;padding:0 40px;align-self:center;">🚪 退出登录</button>
+            <div class="mt-16 text-center text-muted" style="font-size:20px;">v1.0 · 知药</div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 老人端：语音问药 -->
+        <!-- ============================================================ -->
+        <div id="page-elderly-voice" class="page flow-layout">
+            <div class="top-bar">
+                <button class="back-btn" onclick="goBack()">‹</button>
+                <div class="page-title">🎤 语音问药</div>
+                <div class="right-placeholder"></div>
+            </div>
+            <div class="voice-status">
+                <div class="mic-icon" id="micIcon" onclick="toggleVoiceRecording()">🎙️</div>
+                <div style="font-size:26px;margin-top:16px;color:var(--text-gray);" id="voiceStatusText">点击麦克风开始说话</div>
+            </div>
+            <div class="voice-result" id="voiceResult">
+                <div style="font-size:24px;color:var(--text-gray);text-align:center;">👆 点击麦克风，用方言或普通话提问</div>
+                <div id="voiceAnswer" class="hidden mt-16">
+                    <div class="answer-text" id="answerText">正在查询...</div>
+                    <div class="answer-img" id="answerTags"></div>
+                </div>
+            </div>
+            <div class="card mt-16">
+                <div style="font-size:24px;color:var(--text-gray);">💡 试试问：</div>
+                <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;">
+                    <span class="tag-safe" style="padding:12px 24px;border-radius:40px;font-size:24px;cursor:pointer;" onclick="quickQuestion('降压药一次吃几片？')">降压药怎么吃</span>
+                    <span class="tag-safe" style="padding:12px 24px;border-radius:40px;font-size:24px;cursor:pointer;background:var(--gold);color:#333;" onclick="quickQuestion('这个药能喝酒吗？')">能喝酒吗</span>
+                    <span class="tag-danger" style="padding:12px 24px;border-radius:40px;font-size:24px;cursor:pointer;" onclick="quickQuestion('阿莫西林有什么禁忌？')">阿莫西林禁忌</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 老人端：拍照识药 -->
+        <!-- ============================================================ -->
+        <div id="page-elderly-camera" class="page flow-layout">
+            <div class="top-bar">
+                <button class="back-btn" onclick="goBack()">‹</button>
+                <div class="page-title">📷 拍照识药</div>
+                <div class="right-placeholder"></div>
+            </div>
+            <div class="camera-area" id="cameraArea" onclick="triggerCamera()">
+                <div class="cam-icon">📸</div>
+                <div class="cam-hint">点击拍照或选择相册图片</div>
+                <div style="font-size:22px;color:#aaa;margin-top:6px;">支持药盒 / 说明书</div>
+            </div>
+            <div class="camera-result" id="cameraResult">
+                <div id="drugResult" class="hidden drug-result-card">
+                    <div class="drug-name" id="drugResultName">💊 阿莫西林胶囊</div>
+                    <div class="drug-info" id="drugResultInfo">规格：0.5g · 适应症：抗生素</div>
+                    <div class="drug-info" style="color:var(--green-dark);">✅ 用法：一次1粒，一日3次，饭后服用</div>
+                    <div class="drug-info" style="color:var(--red);">⚠️ 禁忌：对青霉素过敏者禁用</div>
+                    <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;">
+                        <span class="tag-safe">✅ 安全服用</span>
+                        <span class="tag-danger">🚫 禁酒</span>
+                    </div>
+                    <button class="big-btn primary mt-16" onclick="addToReminderFromDrug()">➕ 加入吃药提醒</button>
+                </div>
+                <div id="drugResultLoading" class="hidden" style="text-align:center;padding:30px;font-size:30px;color:var(--text-gray);">⏳ 识别中，请稍候...</div>
+                <div id="drugResultFail" class="hidden" style="text-align:center;padding:30px;font-size:30px;color:var(--red);">😅 没看清，请重新拍一下药盒正面</div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 老人端：吃药提醒列表 -->
+        <!-- ============================================================ -->
+        <div id="page-elderly-reminder" class="page flow-layout">
+            <div class="top-bar">
+                <button class="back-btn" onclick="goBack()">‹</button>
+                <div class="page-title">⏰ 吃药提醒</div>
+                <div class="right-placeholder"></div>
+            </div>
+            <div id="reminderList">
+                <div style="text-align:center;padding:30px;font-size:26px;color:var(--text-gray);">加载中...</div>
+            </div>
+            <button class="big-btn primary mt-16" onclick="addTestReminder()" style="width:auto;align-self:center;padding:0 50px;">➕ 添加测试提醒</button>
+            <div class="card mt-16">
+                <div class="card-title">📊 今日统计</div>
+                <div id="todayStats" style="font-size:26px;color:var(--text-gray);">已吃 0 次 · 待吃 0 次</div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 辅助端：首页 -->
+        <!-- ============================================================ -->
+        <div id="page-assistant-home" class="page flow-layout">
+            <div class="top-bar">
+                <div class="right-placeholder"></div>
+                <div class="page-title">📊 健康看板</div>
+                <button class="back-btn" style="width:80px;height:80px;font-size:32px;background:transparent;border:none;box-shadow:none;" onclick="logout()">🚪</button>
+            </div>
+            <!-- SOS 警报横幅 -->
+            <div id="sosAlertBanner" class="sos-alert-banner hidden">
+                <span class="sos-icon-sm">🆘</span>
+                <span class="sos-text">⚠️ 老人触发SOS紧急求助！</span>
+                <span class="sos-time" id="sosAlertTime">刚刚</span>
+            </div>
+            <div class="stat-row">
+                <div class="stat-item"><div class="num" id="statTotal">0</div><div class="lbl">今日应服</div></div>
+                <div class="stat-item"><div class="num" id="statDone">0</div><div class="lbl">已服</div></div>
+                <div class="stat-item"><div class="num" id="statRate">0%</div><div class="lbl">依从率</div></div>
+            </div>
+            <div class="assistant-tabs">
+                <button class="tab-item active" data-tab="tab-home" onclick="switchAssistTab('tab-home')">📋 概况</button>
+                <button class="tab-item" data-tab="tab-family" onclick="switchAssistTab('tab-family')">👨‍👩‍👦 家人</button>
+                <button class="tab-item" data-tab="tab-history" onclick="switchAssistTab('tab-history')">📜 记录</button>
+                <button class="tab-item" data-tab="tab-drugs" onclick="switchAssistTab('tab-drugs')">📚 药库</button>
+            </div>
+            <!-- Tab 内容 -->
+            <div id="tab-home" class="assist-tab-content">
+                <div class="card">
+                    <div class="card-title">👴 绑定老人</div>
+                    <div class="family-card" style="box-shadow:none;padding:0;">
+                        <div class="avatar">👴</div>
+                        <div><div class="fname" id="assistElderlyName">张爷爷</div><div class="fid">ID: 10001</div></div>
+                        <div class="fstatus">已绑定</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">📌 今日提醒</div>
+                    <div id="assistTodayReminders" style="font-size:24px;color:var(--text-gray);">暂无待办</div>
+                </div>
+                <div class="card" style="border-left:8px solid var(--gold);">
+                    <div class="card-title" style="font-size:28px;">💡 用药小贴士</div>
+                    <div style="font-size:24px;color:var(--text-gray);">阿莫西林需饭后服用，避免与酒精同服。</div>
+                </div>
+            </div>
+            <div id="tab-family" class="assist-tab-content hidden">
+                <div class="card">
+                    <div class="card-title">👨‍👩‍👦 家人设置</div>
+                    <div class="setting-row">
+                        <span class="label">🗣️ 方言</span>
+                        <div class="control">
+                            <select id="dialectSelect" onchange="saveSettings()">
+                                <option value="">加载方言列表...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <span class="label">🔤 字体大小</span>
+                        <div class="control">
+                            <input type="range" id="fontSizeRange" min="16" max="36" value="24" step="2" oninput="adjustFontSize(this.value)" />
+                            <span class="val" id="fontSizeVal">24</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <span class="label">🗣️ 播报语速</span>
+                        <div class="control">
+                            <input type="range" id="speechRateRange" min="0.5" max="1.8" value="0.9" step="0.1" oninput="updateSpeechRate(this.value)" />
+                            <span class="val" id="speechRateVal">0.9</span>
+                        </div>
+                    </div>
+                    <div class="setting-row">
+                        <span class="label">🔊 音量</span>
+                        <div class="control">
+                            <input type="range" id="volumeRange" min="0.2" max="1.0" value="0.9" step="0.05" oninput="updateVolume(this.value)" />
+                            <span class="val" id="volumeVal">0.9</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">📋 录入用药信息</div>
+                    <div class="input-group" style="margin-bottom:16px;">
+                        <label style="font-size:24px;">药品名称</label>
+                        <input type="text" id="assistDrugName" placeholder="如：阿莫西林" style="font-size:26px;padding:16px 22px;min-height:68px;" />
+                    </div>
+                    <div class="input-group" style="margin-bottom:16px;">
+                        <label style="font-size:22px;">每日次数</label>
+                        <select id="assistDrugFreq" onchange="updateTimePickers()" style="font-size:26px;padding:16px 22px;min-height:68px;">
+                            <option value="1">每日1次</option>
+                            <option value="2">每日2次</option>
+                            <option value="3" selected>每日3次</option>
+                            <option value="4">每日4次</option>
+                            <option value="5">每日5次</option>
+                            <option value="6">每日6次</option>
+                        </select>
+                    </div>
+                    <div id="timePickerContainer">
+                        <div class="input-group" style="margin-bottom:12px;">
+                            <label style="font-size:22px;">⏰ 第1次</label>
+                            <input type="time" class="assistDrugTimeItem" value="08:00" style="font-size:26px;padding:16px 22px;min-height:68px;width:100%;" />
+                        </div>
+                        <div class="input-group" style="margin-bottom:12px;">
+                            <label style="font-size:22px;">⏰ 第2次</label>
+                            <input type="time" class="assistDrugTimeItem" value="12:00" style="font-size:26px;padding:16px 22px;min-height:68px;width:100%;" />
+                        </div>
+                        <div class="input-group" style="margin-bottom:12px;">
+                            <label style="font-size:22px;">⏰ 第3次</label>
+                            <input type="time" class="assistDrugTimeItem" value="18:00" style="font-size:26px;padding:16px 22px;min-height:68px;width:100%;" />
+                        </div>
+                    </div>
+                    <button class="big-btn primary mt-16" id="assistDrugBtn" onclick="addDrugByAssistant()">➕ 添加用药计划</button>
+                    <button class="big-btn outline mt-16 hidden" id="assistDrugCancel" onclick="cancelEditMedication()" style="font-size:24px;min-height:64px;">取消编辑</button>
+                </div>
+                <div class="card">
+                    <div class="card-title">📋 现有用药计划</div>
+                    <div id="assistMedicationList">
+                        <div style="font-size:24px;color:var(--text-gray);text-align:center;padding:20px 0;">暂无用药计划</div>
+                    </div>
+                </div>
+                <div class="card" style="border:2px solid var(--red);">
+                    <div class="card-title" style="color:var(--red);">⚠️ 危险操作</div>
+                    <button class="big-btn danger" onclick="deleteAccount()" style="font-size:24px;min-height:64px;width:100%;">🗑️ 注销当前账号</button>
+                    <div style="font-size:20px;color:var(--text-gray);margin-top:10px;text-align:center;">注销后所有用药数据将被永久删除</div>
+                </div>
+            </div>
+            <div id="tab-history" class="assist-tab-content hidden">
+                <div class="card">
+                    <div class="card-title">📜 用药历史</div>
+                    <div style="display:flex;gap:16px;margin-bottom:16px;align-items:center;flex-wrap:wrap;">
+                        <label style="font-size:22px;font-weight:500;">📅 查询范围</label>
+                        <select id="historyFilter" onchange="renderAssistHistory()" style="font-size:24px;padding:10px 18px;border-radius:14px;border:2px solid #ddd;background:#fff;min-height:56px;">
+                            <option value="all">全部记录</option>
+                            <option value="week">本周</option>
+                            <option value="month">本月</option>
+                            <option value="year">今年</option>
+                        </select>
+                    </div>
+                    <div id="assistHistoryList">
+                        <div style="font-size:24px;color:var(--text-gray);text-align:center;padding:20px 0;">暂无记录</div>
+                    </div>
+                </div>
+            </div>
+            <div id="tab-drugs" class="assist-tab-content hidden">
+                <div class="search-box">
+                    <input type="text" id="drugSearchInput" placeholder="🔍 搜索药品名称" style="font-size:26px;" />
+                    <button class="big-btn primary-dark" onclick="searchDrugs()" style="font-size:24px;min-height:76px;padding:0 40px;flex:0 0 auto;">搜索</button>
+                </div>
+                <div id="drugSearchResults">
+                    <div style="font-size:24px;color:var(--text-gray);text-align:center;padding:30px 0;">输入药品名，点击搜索</div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /app-container -->
+
+    <script>
+        // ================================================================
+        //  全局状态 & 历史栈
+        // ================================================================
+        const APP = {
+            currentUser: null,
+            role: null,
+            medications: [],
+            history: [],
+            speechRate: 0.9,
+            volume: 0.9,
+            fontSize: 24,
+            dialect: 'zh-CN',
+            isRecording: false,
+            recognition: null,
+            sosTriggered: false,
+            popupDrug: null,
+            pageHistory: [],
+            speechEnabled: true,
+            _speakQueue: [],
+            _isSpeaking: false,
+            _speakAborted: false,
+            _hasGreeted: false,
+        };
+
+        // ================================================================
+        //  工具函数
+        // ================================================================
+        function toast(msg, duration = 2500) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            clearTimeout(el._timer);
+            el._timer = setTimeout(() => el.classList.remove('show'), duration);
+        }
+
+        // ================================================================
+        //  API 调用包装
+        // ================================================================
+        async function apiCall(url, options = {}) {
+            const defaultHeaders = { 'Content-Type': 'application/json' };
+            // 如果是 FormData，不设置 Content-Type（浏览器自动设）
+            const isFormData = options.body instanceof FormData;
+            const headers = isFormData ? (options.headers || {}) : { ...defaultHeaders, ...options.headers };
+            const resp = await fetch(url, {
+                headers,
+                ...options,
+            });
+            if (!resp.ok) {
+                const errText = await resp.text().catch(() => 'Unknown error');
+                throw new Error(`HTTP ${resp.status}: ${errText}`);
+            }
+            const contentType = resp.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                return resp.json();
+            }
+            return resp;
+        }
+
+        // ================================================================
+        //  语音播报系统（队列 + 防重叠 + 终止信号）
+        // ================================================================
+
+        function stopSpeaking() {
+            APP._speakAborted = true;          // 终止正在fetch的speak
+            APP._speakQueue = [];               // 清空待播队列
+            APP._isSpeaking = false;
+            if (APP._speakAudio) {
+                APP._speakAudio.pause();
+                APP._speakAudio.src = '';
+                if (APP._speakBlobUrl) { URL.revokeObjectURL(APP._speakBlobUrl); APP._speakBlobUrl = null; }
+            }
+            if (window.speechSynthesis) { window.speechSynthesis.cancel(); }
+        }
+
+        function primeAudio() {
+            if (!APP._speakAudio) {
+                APP._speakAudio = new Audio();
+                APP._speakAudio.volume = 1.0;
+            }
+            try {
+                if (!APP._audioCtx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    APP._audioCtx = new AC();
+                    const buf = APP._audioCtx.createBufferSource();
+                    buf.buffer = APP._audioCtx.createBuffer(1, 1, 22050);
+                    const gain = APP._audioCtx.createGain();
+                    gain.gain.value = 0.001;
+                    buf.connect(gain);
+                    gain.connect(APP._audioCtx.destination);
+                    buf.start(0);
+                    buf.stop(0.001);
+                }
+                if (APP._audioCtx && APP._audioCtx.state === 'suspended') {
+                    APP._audioCtx.resume();
+                }
+            } catch (e) {}
+        }
+
+        function toggleSpeech() {
+            APP.speechEnabled = !APP.speechEnabled;
+            const btn = document.getElementById('speechToggle');
+            if (APP.speechEnabled) {
+                btn.textContent = '🔊';
+                btn.classList.remove('muted');
+                btn.title = '点击关闭语音播报';
+                // 恢复播放
+                if (APP._speakAudio && APP._speakAudio.src && APP._speakAudio.paused) {
+                    APP._speakAudio.play().catch(() => {});
+                } else if (window.speechSynthesis && window.speechSynthesis.paused) {
+                    window.speechSynthesis.resume();
+                } else if (!APP._isSpeaking) {
+                    _processQueue();
+                }
+            } else {
+                // 暂停播放，保留队列
+                if (APP._speakAudio && !APP._speakAudio.paused) {
+                    APP._speakAudio.pause();
+                }
+                if (window.speechSynthesis && window.speechSynthesis.speaking) {
+                    window.speechSynthesis.pause();
+                }
+                btn.textContent = '🔇';
+                btn.classList.add('muted');
+                btn.title = '点击开启语音播报';
+            }
+            saveData();
+        }
+
+        // 恢复上次的语音播报偏好（从 settings 中读取）
+        if (!APP.speechEnabled) {
+            // 等 DOM 渲染后再更新按钮状态
+            setTimeout(() => {
+                const btn = document.getElementById('speechToggle');
+                if (btn) { btn.textContent = '🔇'; btn.classList.add('muted'); btn.title = '点击开启语音播报'; }
+            }, 100);
+        }
+
+        async function speak(text, callback) {
+            return new Promise((resolve) => {
+                APP._speakQueue.push({
+                    text,
+                    callback: callback
+                        ? () => { callback(); resolve(); }
+                        : resolve
+                });
+                // 有新的语音进来时重置终止信号，保证队列能正常处理
+                APP._speakAborted = false;
+                if (APP.speechEnabled && !APP._isSpeaking) {
+                    _processQueue();
+                }
+            });
+        }
+
+        function _processQueue() {
+            if (APP._speakQueue.length === 0) {
+                APP._isSpeaking = false;
+                return;
+            }
+            APP._isSpeaking = true;
+            APP._speakAborted = false;
+            const item = APP._speakQueue.shift();
+            const voice = APP.dialectVoice || 'x4_yezi';
+            primeAudio();
+            _doPlay(item, voice);
+        }
+
+        async function _doPlay(item, voice) {
+            const { text, callback } = item;
+            // 在开始 fetch 之前就检查一次
+            if (APP._speakAborted || !APP.speechEnabled) {
+                if (callback) callback();
+                _processQueue();
+                return;
+            }
+            try {
+                const resp = await apiCall('/api/tts', {
+                    method: 'POST',
+                    body: JSON.stringify({ text, voice, speed: APP.speechRate, volume: APP.volume })
+                });
+                // fetch 回来后再次检查
+                if (APP._speakAborted || !APP.speechEnabled) {
+                    if (callback) callback();
+                    _processQueue();
+                    return;
+                }
+                const blob = await resp.blob();
+                if (APP._speakAborted || !APP.speechEnabled) {
+                    if (callback) callback();
+                    _processQueue();
+                    return;
+                }
+                const url = URL.createObjectURL(blob);
+                APP._speakBlobUrl = url;
+                const audio = APP._speakAudio || new Audio();
+                APP._speakAudio = audio;
+                audio.src = url;
+                audio.onended = () => {
+                    URL.revokeObjectURL(url);
+                    APP._speakBlobUrl = null;
+                    if (callback) callback();
+                    _processQueue();
+                };
+                audio.onerror = () => {
+                    APP._speakBlobUrl = null;
+                    _fallbackSpeak(text, () => {
+                        if (callback) callback();
+                        _processQueue();
+                    });
+                };
+                // 播放前最后一次检查
+                if (APP._speakAborted || !APP.speechEnabled) {
+                    URL.revokeObjectURL(url);
+                    APP._speakBlobUrl = null;
+                    if (callback) callback();
+                    _processQueue();
+                    return;
+                }
+                const playPromise = audio.play();
+                if (playPromise) {
+                    playPromise.catch(() => {
+                        APP._speakBlobUrl = null;
+                        _fallbackSpeak(text, () => {
+                            if (callback) callback();
+                            _processQueue();
+                        });
+                    });
+                }
+            } catch (e) {
+                console.warn('TTS API 失败，降级为浏览器 TTS:', e);
+                _fallbackSpeak(text, () => {
+                    if (callback) callback();
+                    _processQueue();
+                });
+            }
+        }
+
+        function _fallbackSpeak(text, callback) {
+            // 静音或终止时跳过 fallback
+            if (!APP.speechEnabled || APP._speakAborted) {
+                if (callback) callback();
+                return;
+            }
+            if (!window.speechSynthesis) { if (callback) callback(); return; }
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            const vmap = {
+                'x4_yezi': 'zh-CN', 'x_xiaomei': 'zh-HK', 'x3_linlin': 'nan-Hant-TW',
+                'x2_xiaobao': 'zh-CN', 'x3_yezi_sc': 'zh-CN',
+                'x4_xiaobei': 'zh-CN', 'x2_xiaokun': 'zh-CN', 'x3_xiaodu': 'zh-CN'
+            };
+            utter.lang = vmap[APP.dialectVoice] || 'zh-CN';
+            utter.rate = APP.speechRate || 0.9;
+            utter.volume = APP.volume || 0.9;
+            utter.onend = () => { if (callback) callback(); };
+            utter.onerror = () => { if (callback) callback(); };
+            window.speechSynthesis.speak(utter);
+        }
+
+        function generateId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+        function getToday() { return new Date().toISOString().slice(0, 10); }
+
+        function formatTime(d) { return d.slice(0, 5); }
+
+        async function loadVoices() {
+            if (APP._loadingVoices) return;
+            const select = document.getElementById('dialectSelect');
+            if (!select) return;
+            // 如果已经是API加载的选项（键为 x4_yezi 格式），跳过
+            if (select.options.length > 0 && select.options[0].value && select.options[0].value.startsWith('x')) {
+                if (APP.dialectVoice) select.value = APP.dialectVoice;
+                return;
+            }
+            APP._loadingVoices = true;
+            try {
+                const data = await apiCall('/api/voices');
+                select.innerHTML = '';
+                Object.entries(data.voices).forEach(([key, name]) => {
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+                // 恢复用户已保存的方言选择，而不是覆盖
+                if (APP.dialectVoice && data.voices[APP.dialectVoice]) {
+                    select.value = APP.dialectVoice;
+                } else {
+                    select.value = data.current;
+                    APP.dialectVoice = data.current;
+                }
+            } catch (e) {
+                console.warn('方言列表加载失败，使用默认值');
+            } finally {
+                APP._loadingVoices = false;
+            }
+        }
+
+        // 方言代号 → 显示名称映射（便于老人端展示）
+        const VOICE_NAMES = {
+            'x4_yezi': '普通话', 'x_xiaomei': '粤语', 'x3_linlin': '闽南语',
+            'x2_xiaobao': '内蒙古', 'x3_yezi_sc': '四川话', 'x4_xiaobei': '东北话',
+            'x2_xiaokun': '河南话', 'x3_xiaodu': '成都话',
+        };
+
+        function updateElderlyDialectDisplay() {
+            const name = VOICE_NAMES[APP.dialectVoice] || '普通话';
+            const voiceMap = {
+                'x4_yezi': 'zh-CN', 'x_xiaomei': 'zh-HK', 'x3_linlin': 'zh-HK',
+                'x2_xiaobao': 'zh-CN', 'x3_yezi_sc': 'zh-CN',
+                'x4_xiaobei': 'zh-CN', 'x2_xiaokun': 'zh-CN', 'x3_xiaodu': 'zh-CN'
+            };
+            APP.dialect = voiceMap[APP.dialectVoice] || 'zh-CN';
+            // 老人端当前语言显示（元素可能不在 DOM 中，静默跳过）
+            const el = document.getElementById('elderlyDialectDisplay');
+            if (el) el.textContent = `🗣️ 当前语言：${name}`;
+            // 语音识别用的语言标签也同步更新
+            saveData();
+        }
+
+        // ================================================================
+        //  数据持久化（按用户拆分：设置全局，用药数据按手机号）
+        // ================================================================
+        function getDataKey() {
+            return 'zhiyao_data_' + (APP.currentUser ? APP.currentUser.phone : 'default');
+        }
+
+        function saveData() {
+            try {
+                // 用户用药数据（按手机号）
+                const data = {
+                    medications: APP.medications,
+                    history: APP.history,
+                };
+                localStorage.setItem(getDataKey(), JSON.stringify(data));
+                // 设置（全局共享）
+                localStorage.setItem('zhiyao_settings', JSON.stringify({
+                    dialect: APP.dialect,
+                    dialectVoice: APP.dialectVoice,
+                    speechRate: APP.speechRate,
+                    volume: APP.volume,
+                    fontSize: APP.fontSize,
+                    speechEnabled: APP.speechEnabled,
+                }));
+            } catch (e) {}
+        }
+
+        function loadUserData(phone) {
+            // 加载指定用户的用药数据
+            try {
+                const key = 'zhiyao_data_' + (phone || 'default');
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    APP.medications = data.medications || [];
+                    APP.history = data.history || [];
+                } else {
+                    APP.medications = [];
+                    APP.history = [];
+                    // 演示用户自动填充演示数据
+                    if (phone === '13800008888') {
+                        initDemoData();
+                    }
+                }
+            } catch (e) {
+                APP.medications = [];
+                APP.history = [];
+            }
+        }
+
+        // 页面加载时只加载全局设置
+        try {
+            const raw = localStorage.getItem('zhiyao_settings');
+            if (raw) {
+                const s = JSON.parse(raw);
+                APP.dialect = s.dialect || 'zh-CN';
+                APP.dialectVoice = s.dialectVoice || 'x4_yezi';
+                APP.speechRate = s.speechRate || 0.9;
+                APP.volume = s.volume || 0.9;
+                APP.fontSize = s.fontSize || 24;
+                if (s.speechEnabled === false) {
+                    APP.speechEnabled = false;
+                }
+            } else {
+                // 兼容旧版：从旧 zhiyao_data 迁移设置
+                const oldRaw = localStorage.getItem('zhiyao_data');
+                if (oldRaw) {
+                    const old = JSON.parse(oldRaw);
+                    if (old.settings) {
+                        APP.dialect = old.settings.dialect || 'zh-CN';
+                        APP.dialectVoice = old.settings.dialectVoice || 'x4_yezi';
+                        APP.speechRate = old.settings.speechRate || 0.9;
+                        APP.volume = old.settings.volume || 0.9;
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // 应用保存的字体大小
+        document.documentElement.style.fontSize = APP.fontSize + 'px';
+
+        // 方言代号迁移：旧版 zh-CN/zh-HK/nan → 新版 x4_yezi/x3_linlin/...
+        const _legacyMap = { 'zh-CN': 'x4_yezi', 'zh-HK': 'x3_linlin', 'nan': 'x3_linlin', 'browser_zh_hk': 'x4_yezi' };
+        if (_legacyMap[APP.dialectVoice]) {
+            APP.dialectVoice = _legacyMap[APP.dialectVoice];
+        }
+        // 确保方言对应的语音识别语言标签同步
+        const _vmap = { 'x4_yezi': 'zh-CN', 'x_xiaomei': 'zh-HK', 'x3_linlin': 'zh-HK', 'x2_xiaobao': 'zh-CN',
+            'x3_yezi_sc': 'zh-CN', 'x4_xiaobei': 'zh-CN', 'x2_xiaokun': 'zh-CN', 'x3_xiaodu': 'zh-CN' };
+        APP.dialect = _vmap[APP.dialectVoice] || 'zh-CN';
+
+        // ================================================================
+        //  页面导航（带历史栈）
+        // ================================================================
+        function showPage(id, pushHistory = true) {
+            stopSpeaking(); // 离开当前页面时停止播放
+            const currentActive = document.querySelector('.page.active');
+            if (currentActive && currentActive.id === id) return;
+            if (currentActive && pushHistory) {
+                APP.pageHistory.push(currentActive.id);
+            }
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active', 'page-fade'));
+            const target = document.getElementById(id);
+            if (target) {
+                target.classList.add('active', 'page-fade');
+                target.scrollTop = 0;
+                if (pushHistory) {
+                    try { window.history.pushState({ pageId: id }, '', '#'); } catch (e) {}
+                }
+            }
+            document.getElementById('medicationPopup').classList.remove('active');
+        }
+
+        function goBack() {
+            stopSpeaking();
+            if (APP.pageHistory.length > 0) {
+                let prev = APP.pageHistory.pop();
+                let target = prev;
+                while (target === document.querySelector('.page.active')?.id && APP.pageHistory.length > 0) {
+                    target = APP.pageHistory.pop();
+                }
+                if (target) {
+                    showPage(target, false);
+                    try { window.history.back(); } catch (e) {}
+                    return;
+                }
+            }
+            if (APP.role === 'elderly') {
+                showPage('page-elderly-home', false);
+            } else if (APP.role === 'assistant') {
+                showPage('page-assistant-home', false);
+            } else {
+                showPage('page-login', false);
+            }
+            APP.pageHistory = [];
+        }
+
+        window.addEventListener('popstate', function(e) {
+            const current = document.querySelector('.page.active');
+            if (current && current.id !== 'page-login') {
+                goBack();
+            }
+        });
+
+        // ================================================================
+        //  登录 / 注册 / 角色
+        // ================================================================
+        function handleLogin() {
+            primeAudio(); // 用户点击按钮时锁定音频
+            const phone = document.getElementById('loginPhone').value.trim();
+            const pwd = document.getElementById('loginPassword').value.trim();
+            if (!phone || !pwd) { toast('请填写完整信息'); return; }
+            const users = JSON.parse(localStorage.getItem('zhiyao_users') || '[]');
+            const user = users.find(u => u.phone === phone && u.password === pwd);
+            if (user) {
+                APP.currentUser = user;
+                loadUserData(user.phone);
+                toast('登录成功！');
+                showPage('page-role');
+                if (user.role === 'elderly') {
+                    document.getElementById('elderlyUserName').textContent = user.name || '长辈';
+                }
+                if (!APP._hasGreeted) {
+                    APP._hasGreeted = true;
+                    speak('您好，欢迎使用知药智能助手');
+                }
+            } else if (phone === '13800008888' && pwd === '123456') {
+                APP.currentUser = { phone: '13800008888', name: '张爷爷', role: 'elderly' };
+                loadUserData('13800008888');
+                toast('演示登录成功！');
+                showPage('page-role');
+                document.getElementById('elderlyUserName').textContent = '张爷爷';
+                if (!APP._hasGreeted) {
+                    APP._hasGreeted = true;
+                    speak('您好，欢迎使用知药智能助手');
+                }
+            } else {
+                toast('手机号或密码错误');
+            }
+        }
+
+        function handleRegister() {
+            const phone = document.getElementById('regPhone').value.trim();
+            const name = document.getElementById('regName').value.trim();
+            const pwd = document.getElementById('regPassword').value.trim();
+            if (!phone || !name || !pwd) { toast('请填写完整信息'); return; }
+            if (pwd.length < 6) { toast('密码至少6位'); return; }
+            const users = JSON.parse(localStorage.getItem('zhiyao_users') || '[]');
+            if (users.find(u => u.phone === phone)) { toast('该手机号已注册'); return; }
+            users.push({ phone, name, password: pwd, role: null });
+            localStorage.setItem('zhiyao_users', JSON.stringify(users));
+            toast('注册成功！请登录');
+            showPage('page-login');
+            document.getElementById('loginPhone').value = phone;
+        }
+
+        async function enterRole(role) {
+            primeAudio(); // 角色选择是用户手势，锁定音频
+            APP.role = role;
+            APP.pageHistory = [];
+            if (role === 'elderly') {
+                showPage('page-elderly-home', false);
+                renderElderlyReminders();
+                updateTodayStats();
+                if (APP.currentUser && APP.currentUser.name) {
+                    document.getElementById('elderlyUserName').textContent = APP.currentUser.name;
+                }
+                updateElderlyDialectDisplay();
+            } else {
+                showPage('page-assistant-home', false);
+                renderAssistHome();
+                document.getElementById('assistElderlyName').textContent = APP.currentUser ? (APP.currentUser.name || '张爷爷') :
+                    '张爷爷';
+                switchAssistTab('tab-home');
+                await loadVoices();
+                document.getElementById('fontSizeRange').value = APP.fontSize;
+                document.getElementById('fontSizeVal').textContent = APP.fontSize;
+                document.getElementById('speechRateRange').value = APP.speechRate;
+                document.getElementById('speechRateVal').textContent = APP.speechRate;
+                document.getElementById('volumeRange').value = APP.volume;
+                document.getElementById('volumeVal').textContent = APP.volume;
+                updateAssistStats();
+                renderAssistHistory();
+                renderAssistMedications();
+            }
+            if (APP.currentUser) {
+                const users = JSON.parse(localStorage.getItem('zhiyao_users') || '[]');
+                const idx = users.findIndex(u => u.phone === APP.currentUser.phone);
+                if (idx >= 0) { users[idx].role = role;
+                    localStorage.setItem('zhiyao_users', JSON.stringify(users)); }
+            }
+        }
+
+        function logout() {
+            APP.currentUser = null;
+            APP.role = null;
+            APP.pageHistory = [];
+            APP._hasGreeted = false;
+            document.getElementById('sosFullscreen').classList.remove('active');
+            document.getElementById('medicationPopup').classList.remove('active');
+            showPage('page-login', false);
+            toast('已退出');
+        }
+
+        function deleteAccount() {
+            if (!APP.currentUser) return;
+            if (!confirm('⚠️ 确定要注销账号「' + APP.currentUser.name + '」吗？所有用药数据将被永久删除！')) return;
+            if (!confirm('再次确认：此操作不可恢复！')) return;
+            const phone = APP.currentUser.phone;
+            // 从用户列表中删除
+            const users = JSON.parse(localStorage.getItem('zhiyao_users') || '[]');
+            const filtered = users.filter(u => u.phone !== phone);
+            localStorage.setItem('zhiyao_users', JSON.stringify(filtered));
+            // 删除该用户的用药数据
+            localStorage.removeItem('zhiyao_data_' + phone);
+            toast('账号已注销');
+            logout();
+        }
+
+        // ================================================================
+        //  老人端 - 吃药提醒
+        // ================================================================
+        function renderElderlyReminders() {
+            const container = document.getElementById('elderlyTodayReminders');
+            const today = getToday();
+            const items = APP.medications.filter(m => m.date === today);
+            if (items.length === 0) {
+                container.innerHTML = '<div style="font-size:24px;color:var(--text-gray);">今日暂无服药计划 🎉</div>';
+                return;
+            }
+            let html = '';
+            items.forEach(m => {
+                const status = m.taken ? '✅ 已吃' : '⏳ 待吃';
+                const cls = m.taken ? 'badge-done' : 'badge-pending';
+                html += `<div class="reminder-item">
+                    <div class="info"><div class="name">💊 ${m.name}</div><div class="time">⏰ ${formatTime(m.time)}</div></div>
+                    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+                        <span class="status-badge ${cls}">${status}</span>
+                        <span class="del-btn" onclick="deleteReminder('${m.id}')" title="删除">✕</span>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderReminderList() {
+            const container = document.getElementById('reminderList');
+            const today = getToday();
+            const items = APP.medications.filter(m => m.date === today);
+            if (items.length === 0) {
+                container.innerHTML =
+                    '<div style="text-align:center;padding:30px;font-size:26px;color:var(--text-gray);">📭 今日暂无提醒</div>';
+                return;
+            }
+            let html = '';
+            items.forEach(m => {
+                const status = m.taken ? '✅ 已吃' : '⏳ 待吃';
+                const cls = m.taken ? 'badge-done' : 'badge-pending';
+                html += `<div class="reminder-item">
+                    <div class="info"><div class="name">💊 ${m.name}</div><div class="time">⏰ ${formatTime(m.time)}</div></div>
+                    <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+                        <span class="status-badge ${cls}">${status}</span>
+                        <span class="del-btn" onclick="deleteReminder('${m.id}')" title="删除">✕</span>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+            updateTodayStats();
+        }
+
+        function updateTodayStats() {
+            const today = getToday();
+            const items = APP.medications.filter(m => m.date === today);
+            const total = items.length;
+            const done = items.filter(m => m.taken).length;
+            const rate = total > 0 ? Math.round(done / total * 100) : 0;
+            document.getElementById('todayStats').textContent = `已吃 ${done} 次 · 待吃 ${total - done} 次 · 依从率 ${rate}%`;
+        }
+
+        function addTestReminder() {
+            const names = ['阿莫西林', '降压药', '阿司匹林', '二甲双胍'];
+            const name = names[Math.floor(Math.random() * names.length)];
+            const hour = 8 + Math.floor(Math.random() * 10);
+            const minute = Math.floor(Math.random() * 60);
+            const time = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+            APP.medications.push({
+                id: generateId(),
+                name: name,
+                time: time,
+                date: getToday(),
+                taken: false,
+            });
+            saveData();
+            renderReminderList();
+            renderElderlyReminders();
+            updateTodayStats();
+            toast(`已添加 ${name} ${time} 提醒`);
+            speak(`已添加 ${name} 服药提醒`);
+        }
+
+        function deleteReminder(id) {
+            if (!confirm('确定要删除这条服药提醒吗？')) return;
+            APP.medications = APP.medications.filter(m => m.id !== id);
+            saveData();
+            renderReminderList();
+            renderElderlyReminders();
+            updateTodayStats();
+            updateAssistStats();
+            renderAssistTodayReminders();
+            renderAssistMedications();
+            toast('已删除服药提醒');
+        }
+
+        function renderAssistMedications() {
+            const container = document.getElementById('assistMedicationList');
+            if (!container) return;
+            const today = getToday();
+            const items = APP.medications.filter(m => m.date === today);
+            if (items.length === 0) {
+                container.innerHTML = '<div style="font-size:24px;color:var(--text-gray);text-align:center;padding:20px 0;">暂无用药计划</div>';
+                return;
+            }
+            let html = '';
+            items.forEach(m => {
+                const status = m.taken ? '✅ 已吃' : '⏳ 待吃';
+                const cls = m.taken ? 'badge-done' : 'badge-pending';
+                html += `<div class="reminder-item" style="margin-bottom:12px;">
+                    <div class="info"><div class="name">💊 ${m.name}</div><div class="time">⏰ ${formatTime(m.time)} (${status})</div></div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                        <span class="del-btn" onclick="editReminder('${m.id}')" title="编辑" style="background:var(--blue-light);color:#fff;font-size:18px;">✎</span>
+                        <span class="del-btn" onclick="deleteReminder('${m.id}')" title="删除">✕</span>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function editReminder(id) {
+            const med = APP.medications.find(m => m.id === id);
+            if (!med) return toast('未找到该提醒');
+            APP._editingId = id;
+            document.getElementById('assistDrugName').value = med.name;
+            document.getElementById('assistDrugFreq').value = '1';
+            updateTimePickers();
+            // 设置第一个时间选择器为当前提醒的时间
+            const firstPicker = document.querySelector('.assistDrugTimeItem');
+            if (firstPicker) firstPicker.value = med.time;
+            document.getElementById('assistDrugBtn').textContent = '💾 保存修改';
+            document.getElementById('assistDrugBtn').className = 'big-btn success mt-16';
+            document.getElementById('assistDrugBtn').onclick = function() { saveEditedMedication(); };
+            document.getElementById('assistDrugCancel').classList.remove('hidden');
+            toast('正在编辑，修改后点击保存');
+        }
+
+        function saveEditedMedication() {
+            const id = APP._editingId;
+            if (!id) { cancelEditMedication(); return; }
+            const med = APP.medications.find(m => m.id === id);
+            if (!med) { cancelEditMedication(); return; }
+            const name = document.getElementById('assistDrugName').value.trim();
+            const times = getTimeValues();
+            if (!name) { toast('请输入药品名称'); return; }
+            if (times.length === 0) { toast('请设置时间'); return; }
+            med.name = name;
+            med.time = times[0];
+            saveData();
+            toast('✅ 已更新服药提醒');
+            cancelEditMedication();
+            renderReminderList();
+            renderElderlyReminders();
+            updateTodayStats();
+            updateAssistStats();
+            renderAssistTodayReminders();
+            renderAssistMedications();
+        }
+
+        function cancelEditMedication() {
+            APP._editingId = null;
+            document.getElementById('assistDrugName').value = '';
+            document.getElementById('assistDrugFreq').value = '3';
+            updateTimePickers();
+            document.getElementById('assistDrugBtn').textContent = '➕ 添加用药计划';
+            document.getElementById('assistDrugBtn').className = 'big-btn primary mt-16';
+            document.getElementById('assistDrugBtn').onclick = function() { addDrugByAssistant(); };
+            document.getElementById('assistDrugCancel').classList.add('hidden');
+        }
+
+        // ================================================================
+        //  吃药弹窗
+        // ================================================================
+        function triggerMedicationPopup(drugName, time) {
+            const popup = document.getElementById('medicationPopup');
+            document.getElementById('popupDrugName').textContent = drugName;
+            document.getElementById('popupDrugTime').textContent = `⏰ ${time} 服药时间到`;
+            APP.popupDrug = { name: drugName, time: time };
+            popup.classList.add('active');
+            speak(`吃药时间到了，请服用 ${drugName}`);
+        }
+
+        function confirmMedication() {
+            const popup = document.getElementById('medicationPopup');
+            const name = APP.popupDrug ? APP.popupDrug.name : '药物';
+            const today = getToday();
+            const item = APP.medications.find(m => m.date === today && m.name === name && !m.taken);
+            if (item) {
+                item.taken = true;
+                APP.history.push({ time: new Date().toLocaleString(), name: name, status: '已吃' });
+                saveData();
+                toast(`✅ 已记录 ${name} 已服用`);
+                speak(`好的，已记录 ${name} 已服用`);
+                renderReminderList();
+                renderElderlyReminders();
+                updateTodayStats();
+                updateAssistStats();
+                renderAssistHistory();
+            } else {
+                toast('已记录');
+            }
+            popup.classList.remove('active');
+            APP.popupDrug = null;
+        }
+
+        function snoozeMedication() {
+            const popup = document.getElementById('medicationPopup');
+            const name = APP.popupDrug ? APP.popupDrug.name : '药物';
+            toast(`⏰ ${name} 延后30分钟提醒`);
+            speak(`好的，${name} 延后30分钟提醒`);
+            popup.classList.remove('active');
+            APP.popupDrug = null;
+            setTimeout(() => {
+                if (APP.role === 'elderly') {
+                    const item = APP.medications.find(m => m.date === getToday() && m.name === name && !m.taken);
+                    if (item) {
+                        triggerMedicationPopup(name, item.time);
+                    }
+                }
+            }, 30000);
+        }
+
+        function closeMedicationPopup() {
+            document.getElementById('medicationPopup').classList.remove('active');
+            APP.popupDrug = null;
+        }
+
+        setInterval(() => {
+            if (APP.role !== 'elderly') return;
+            const today = getToday();
+            const now = new Date();
+            const nowStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            const pending = APP.medications.filter(m => m.date === today && !m.taken);
+            for (const m of pending) {
+                if (m.time === nowStr) {
+                    triggerMedicationPopup(m.name, m.time);
+                    break;
+                }
+            }
+        }, 30000);
+
+        // ================================================================
+        //  老人端 - 语音问药
+        // ================================================================
+        function toggleVoiceRecording() {
+            if (APP.isRecording) { stopRecording(); } else { startRecording(); }
+        }
+
+        function startRecording() {
+            stopSpeaking(); // 开始录音时停止播放
+            primeAudio(); // 锁定音频上下文
+            if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+                toast('当前浏览器不支持语音识别，请使用Chrome');
+                return;
+            }
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            APP.recognition = new SR();
+            APP.recognition.lang = APP.dialect || 'zh-CN';
+            APP.recognition.continuous = false;
+            APP.recognition.interimResults = false;
+            APP.recognition.onstart = function() {
+                APP.isRecording = true;
+                document.getElementById('micIcon').classList.add('recording');
+                document.getElementById('voiceStatusText').textContent = '🎙️ 正在听... 请说话';
+                toast('🎤 请开始说话');
+            };
+            APP.recognition.onresult = async function(event) {
+                const result = event.results[0][0].transcript;
+                document.getElementById('voiceStatusText').textContent = `🗣️ 你说: "${result}"`;
+                toast('已识别，正在查询...');
+                stopRecording();
+                await processVoiceQuery(result);
+            };
+            APP.recognition.onerror = function(event) {
+                toast('语音识别出错，请重试');
+                stopRecording();
+            };
+            APP.recognition.onend = function() { stopRecording(); };
+            APP.recognition.start();
+        }
+
+        function stopRecording() {
+            if (APP.recognition) { try { APP.recognition.stop(); } catch (e) {} }
+            APP.isRecording = false;
+            document.getElementById('micIcon').classList.remove('recording');
+            if (document.getElementById('voiceStatusText').textContent === '🎙️ 正在听... 请说话') {
+                document.getElementById('voiceStatusText').textContent = '点击麦克风开始说话';
+            }
+        }
+
+        async function processVoiceQuery(query) {
+            const answerDiv = document.getElementById('voiceAnswer');
+            const textEl = document.getElementById('answerText');
+            const tagsEl = document.getElementById('answerTags');
+            answerDiv.classList.remove('hidden');
+            textEl.textContent = '⏳ AI思考中，请稍候...';
+            tagsEl.innerHTML = '';
+            try {
+                const data = await apiCall('/api/chat', {
+                    method: 'POST',
+                    body: JSON.stringify({ text: query })
+                });
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                textEl.textContent = data.reply;
+                // 从回复中提取标签
+                const tags = [];
+                // 提取 ✅ 开头的建议
+                const safeMatch = data.reply.match(/✅[^。\n]*/);
+                if (safeMatch) tags.push({ text: safeMatch[0].trim(), cls: 'tag-safe' });
+                // 提取 ⚠️ 开头的警告
+                const warnMatch = data.reply.match(/⚠️[^。\n]*/);
+                if (warnMatch) tags.push({ text: warnMatch[0].trim(), cls: 'tag-danger' });
+                // 提取 🚫 开头的禁忌
+                const banMatch = data.reply.match(/🚫[^。\n]*/);
+                if (banMatch) tags.push({ text: banMatch[0].trim(), cls: 'tag-danger' });
+                // 如果提取不到标签，用默认标签
+                if (tags.length === 0) {
+                    if (data.reply.includes('咨询医生') || data.reply.includes('禁忌') || data.reply.includes('禁用')) {
+                        tags.push({ text: '💡 咨询医生', cls: 'tag-danger' });
+                    } else {
+                        tags.push({ text: '✅ 参考建议', cls: 'tag-safe' });
+                    }
+                }
+                tagsEl.innerHTML = tags.map(t => `<span class="tag ${t.cls}">${t.text}</span>`).join('');
+                await speak(data.reply);
+                document.getElementById('voiceStatusText').textContent = '✅ 已回答，可继续提问';
+            } catch (e) {
+                textEl.textContent = '😅 网络开小差了，请稍后重试';
+                tagsEl.innerHTML = '';
+                document.getElementById('voiceStatusText').textContent = '❌ 回答失败，请重试';
+            }
+        }
+
+        async function quickQuestion(q) {
+            primeAudio(); // 锁定音频上下文
+            document.getElementById('voiceStatusText').textContent = `🗣️ 你问: "${q}"`;
+            await processVoiceQuery(q);
+        }
+
+        // ================================================================
+        //  老人端 - 拍照识药
+        // ================================================================
+        async function triggerCamera() {
+            stopSpeaking();
+            const loading = document.getElementById('drugResultLoading');
+            const result = document.getElementById('drugResult');
+            const fail = document.getElementById('drugResultFail');
+            result.classList.add('hidden');
+            fail.classList.add('hidden');
+
+            // 创建文件选择器
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*,image/jpeg,image/png';
+            fileInput.capture = 'environment';  // 移动端优先后置摄像头
+            fileInput.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                loading.classList.remove('hidden');
+                toast('📸 正在识别药品...');
+
+                try {
+                    // Step 1: OCR 识别
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const ocrResp = await fetch('/api/ocr', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const ocrData = await ocrResp.json();
+
+                    if (ocrData.error) {
+                        throw new Error(ocrData.error);
+                    }
+                    if (!ocrData.text || ocrData.text.trim() === '') {
+                        loading.classList.add('hidden');
+                        fail.classList.remove('hidden');
+                        document.querySelector('#drugResultFail') &&
+                            (document.querySelector('#drugResultFail').textContent = '😅 未识别到文字，请拍药盒正面');
+                        speak('没看清，请重新拍一下药盒正面');
+                        toast('😅 未识别到文字');
+                        return;
+                    }
+
+                    // Step 2: AI 分析识别结果
+                    const chatResp = await apiCall('/api/chat', {
+                        method: 'POST',
+                        body: JSON.stringify({ image_text: ocrData.text })
+                    });
+                    if (chatResp.error) {
+                        throw new Error(chatResp.error);
+                    }
+
+                    // Step 3: 渲染结果
+                    loading.classList.add('hidden');
+                    result.classList.remove('hidden');
+                    document.getElementById('drugResultName').textContent = `💊 识别结果`;
+                    document.getElementById('drugResultInfo').textContent = ocrData.text;
+
+                    // 找到或创建 AI 回复展示区
+                    let aiInfoEl = document.querySelector('.drug-result-card .drug-ai-reply');
+                    if (!aiInfoEl) {
+                        aiInfoEl = document.createElement('div');
+                        aiInfoEl.className = 'drug-info drug-ai-reply';
+                        aiInfoEl.style.marginTop = '12px';
+                        aiInfoEl.style.padding = '12px';
+                        aiInfoEl.style.background = '#f0f6ff';
+                        aiInfoEl.style.borderRadius = '16px';
+                        aiInfoEl.style.fontSize = '26px';
+                        aiInfoEl.style.color = 'var(--blue)';
+                        const cardBody = document.querySelector('.drug-result-card');
+                        if (cardBody) {
+                            cardBody.insertBefore(aiInfoEl, cardBody.querySelector('.tag-safe')?.parentNode || null);
+                        }
+                    }
+                    aiInfoEl.textContent = chatResp.reply;
+
+                    // 安全标签
+                    const tagContainer = document.querySelector('.drug-result-card .tag-safe')?.parentNode;
+                    if (tagContainer) {
+                        const safeTags = tagContainer.querySelectorAll('.tag-safe, .tag-danger');
+                        safeTags.forEach(t => t.remove());
+                        if (chatResp.reply.includes('✅') || !chatResp.reply.includes('⚠️')) {
+                            tagContainer.innerHTML = '<span class="tag tag-safe">✅ 安全服用</span>';
+                        } else {
+                            tagContainer.innerHTML = '<span class="tag tag-danger">⚠️ 请遵医嘱</span>';
+                        }
+                    }
+
+                    // 保存识别名称供"加入提醒"用
+                    APP._lastOcrDrugName = ocrData.text.split('\n')[0] || '识别药品';
+                    APP._lastOcrDrugAi = chatResp.reply;
+
+                    speak(chatResp.reply);
+                    toast('✅ 识别成功');
+                } catch (err) {
+                    loading.classList.add('hidden');
+                    fail.classList.remove('hidden');
+                    document.querySelector('#drugResultFail') &&
+                        (document.querySelector('#drugResultFail').textContent = '😅 ' + err.message);
+                    toast('😅 识别失败，请重拍');
+                }
+            };
+            fileInput.click();
+        }
+
+        function addToReminderFromDrug() {
+            const name = APP._lastOcrDrugName || document.getElementById('drugResultName').textContent.replace('💊 ', '') || '识别药品';
+            const now = new Date();
+            const hour = (now.getHours() + 1) % 24;  // 建议一小时后
+            const minute = now.getMinutes();
+            const time = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+            APP.medications.push({
+                id: generateId(),
+                name: name,
+                time: time,
+                date: getToday(),
+                taken: false,
+            });
+            saveData();
+            renderReminderList();
+            renderElderlyReminders();
+            updateTodayStats();
+            toast(`✅ 已加入提醒：${name} ${time}`);
+            speak(`已加入吃药提醒`);
+        }
+
+        // ================================================================
+        //  SOS 紧急
+        // ================================================================
+        function triggerSOS() {
+            if (APP.sosTriggered) return;
+            stopSpeaking();
+            APP.sosTriggered = true;
+            document.getElementById('sosFullscreen').classList.add('active');
+            try {
+                const ctx = new(window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 880;
+                osc.type = 'square';
+                gain.gain.value = 0.15;
+                osc.start();
+                setTimeout(() => { try { osc.stop();
+                        ctx.close(); } catch (e) {} }, 3000);
+            } catch (e) {}
+            speak('紧急求助已发出，已通知您的家人');
+            toast('🆘 SOS已触发，已通知家人');
+            const alertBanner = document.getElementById('sosAlertBanner');
+            if (alertBanner) {
+                alertBanner.classList.remove('hidden');
+                document.getElementById('sosAlertTime').textContent = new Date().toLocaleTimeString();
+            }
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 500]);
+        }
+
+        function cancelSOS() {
+            APP.sosTriggered = false;
+            document.getElementById('sosFullscreen').classList.remove('active');
+            toast('已取消求助');
+            speak('已取消求助');
+        }
+
+        // ================================================================
+        //  辅助端
+        // ================================================================
+        function renderAssistHome() {
+            updateAssistStats();
+            renderAssistTodayReminders();
+        }
+
+        function updateAssistStats() {
+            const today = getToday();
+            const items = APP.medications.filter(m => m.date === today);
+            const total = items.length;
+            const done = items.filter(m => m.taken).length;
+            const rate = total > 0 ? Math.round(done / total * 100) : 0;
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statDone').textContent = done;
+            document.getElementById('statRate').textContent = rate + '%';
+        }
+
+        function renderAssistTodayReminders() {
+            const container = document.getElementById('assistTodayReminders');
+            const today = getToday();
+            const items = APP.medications.filter(m => m.date === today);
+            if (items.length === 0) {
+                container.innerHTML = '<div style="font-size:24px;color:var(--text-gray);text-align:center;padding:20px 0;">🎉 今日暂无服药计划</div>';
+                return;
+            }
+            let html = '';
+            items.slice(0, 10).forEach(m => {
+                const status = m.taken ? '✅' : '⏳';
+                html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f0f0f0;">
+                    <span style="flex:1;min-width:0;word-break:break-word;">💊 ${m.name} ${formatTime(m.time)}</span>
+                    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                        <span>${status}</span>
+                        <span class="del-btn" onclick="deleteReminder('${m.id}')" title="删除" style="width:40px;height:40px;font-size:16px;">✕</span>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function isInTimeRange(timeStr, range) {
+            if (range === 'all') return true;
+            const date = new Date(timeStr);
+            if (isNaN(date.getTime())) return true; // 无法解析则显示
+            const now = new Date();
+            if (range === 'week') {
+                const weekStart = new Date(now);
+                weekStart.setDate(now.getDate() - now.getDay());
+                weekStart.setHours(0,0,0,0);
+                return date >= weekStart;
+            }
+            if (range === 'month') {
+                return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+            }
+            if (range === 'year') {
+                return date.getFullYear() === now.getFullYear();
+            }
+            return true;
+        }
+
+        function renderAssistHistory() {
+            const container = document.getElementById('assistHistoryList');
+            const filter = document.getElementById('historyFilter');
+            const range = filter ? filter.value : 'all';
+            let history = APP.history.filter(h => isInTimeRange(h.time, range));
+            if (history.length === 0) {
+                container.innerHTML =
+                    '<div style="font-size:24px;color:var(--text-gray);text-align:center;padding:20px 0;">📭 该时间范围内暂无记录</div>';
+                return;
+            }
+            let html = '';
+            history.slice().reverse().slice(0, 50).forEach(h => {
+                const cls = h.status === '已吃' ? 'badge-done' : 'badge-pending';
+                html += `<div class="history-item">
+                    <div class="h-time">${h.time}</div>
+                    <div class="h-info"><div class="h-name">💊 ${h.name}</div></div>
+                    <span class="h-badge ${cls}">${h.status}</span>
+                </div>`;
+            });
+            if (history.length > 50) {
+                html += `<div style="text-align:center;font-size:22px;color:var(--text-gray);padding:12px 0;">仅显示最近50条记录，共${history.length}条</div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function switchAssistTab(tabId) {
+            document.querySelectorAll('.assist-tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+            document.querySelectorAll('.assistant-tabs .tab-item').forEach(el => el.classList.remove('active'));
+            document.querySelector(`.assistant-tabs .tab-item[data-tab="${tabId}"]`).classList.add('active');
+            if (tabId === 'tab-history') renderAssistHistory();
+            if (tabId === 'tab-home') renderAssistHome();
+            if (tabId === 'tab-family') renderAssistMedications();
+        }
+
+        // ================================================================
+        //  辅助端 - 设置调节
+        // ================================================================
+        function saveSettings() {
+            const voiceKey = document.getElementById('dialectSelect').value;
+            APP.dialectVoice = voiceKey;
+            // 从 VOICES 映射找对应的语言标签（给浏览器语音识别用）
+            const voiceMap = {
+                'x4_yezi': 'zh-CN', 'x_xiaomei': 'zh-HK', 'x3_linlin': 'zh-HK',
+                'x2_xiaobao': 'zh-CN', 'x3_yezi_sc': 'zh-CN',
+                'x4_xiaobei': 'zh-CN', 'x2_xiaokun': 'zh-CN', 'x3_xiaodu': 'zh-CN'
+            };
+            APP.dialect = voiceMap[voiceKey] || 'zh-CN';
+            saveData();
+            // 同步更新老人端语言显示（用户切换到老人端时立即生效）
+            updateElderlyDialectDisplay();
+            toast('已保存设置');
+            speak('设置已保存');
+        }
+
+        function adjustFontSize(val) {
+            val = parseInt(val);
+            APP.fontSize = val;
+            document.getElementById('fontSizeVal').textContent = val;
+            document.documentElement.style.fontSize = val + 'px';
+            saveData();
+            toast(`字体大小: ${val}px`);
+        }
+
+        function updateSpeechRate(val) {
+            APP.speechRate = parseFloat(val);
+            document.getElementById('speechRateVal').textContent = val;
+            saveData();
+        }
+
+        function updateVolume(val) {
+            APP.volume = parseFloat(val);
+            document.getElementById('volumeVal').textContent = val;
+            saveData();
+        }
+
+        // ================================================================
+        //  辅助端 - 动态时间选择器 & 添加用药
+        // ================================================================
+        function updateTimePickers() {
+            const freq = parseInt(document.getElementById('assistDrugFreq').value);
+            const container = document.getElementById('timePickerContainer');
+            const currentItems = container.querySelectorAll('.assistDrugTimeItem');
+            const currentValues = [];
+            currentItems.forEach(el => currentValues.push(el.value));
+
+            const defaultTimes = ['08:00', '12:00', '14:00', '18:00', '21:00', '07:00'];
+            let html = '';
+            for (let i = 0; i < freq; i++) {
+                const val = currentValues[i] || defaultTimes[i] || '08:00';
+                html += `<div class="input-group" style="margin-bottom:12px;">
+                    <label style="font-size:22px;">⏰ 第${i+1}次</label>
+                    <input type="time" class="assistDrugTimeItem" value="${val}" style="font-size:26px;padding:16px 22px;min-height:68px;width:100%;" />
+                </div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function getTimeValues() {
+            const items = document.querySelectorAll('.assistDrugTimeItem');
+            const times = [];
+            items.forEach(el => { if (el.value) times.push(el.value); });
+            return times;
+        }
+
+        function addDrugByAssistant() {
+            const name = document.getElementById('assistDrugName').value.trim();
+            const times = getTimeValues();
+            if (!name) { toast('请输入药品名称'); return; }
+            if (times.length === 0) { toast('请设置至少一个服药时间'); return; }
+            times.forEach(t => {
+                APP.medications.push({
+                    id: generateId(),
+                    name: name,
+                    time: t,
+                    date: getToday(),
+                    taken: false,
+                });
+            });
+            saveData();
+            toast(`✅ 已添加 ${name}，每日${times.length}次`);
+            speak(`已添加 ${name} 用药计划`);
+            renderAssistTodayReminders();
+            updateAssistStats();
+            renderAssistMedications();
+            renderReminderList();
+            renderElderlyReminders();
+            updateTodayStats();
+            document.getElementById('assistDrugName').value = '';
+            updateTimePickers();
+        }
+
+        // ================================================================
+        //  辅助端 - 药库查询（真实 AI 查询）
+        // ================================================================
+        async function searchDrugs() {
+            const query = document.getElementById('drugSearchInput').value.trim();
+            const container = document.getElementById('drugSearchResults');
+            if (!query) { toast('请输入药品名称'); return; }
+            container.innerHTML = '<div style="text-align:center;padding:30px;font-size:26px;color:var(--text-gray);">⏳ 正在查询药库...</div>';
+            try {
+                const data = await apiCall('/api/chat', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        text: `请详细介绍一下药品"${query}"，包括：用途、规格、用法用量、禁忌症、不良反应、注意事项。请按以下格式回答：
+💊 【药品名称】xxx
+📋 【用途】xxx
+💊 【用法用量】xxx
+⚠️ 【禁忌症】xxx
+⚠️ 【不良反应】xxx
+💡 【注意事项】xxx`
+                    })
+                });
+                if (data.error) throw new Error(data.error);
+                if (!data.reply || data.reply.length < 5) {
+                    container.innerHTML = `<div style="font-size:24px;color:var(--text-gray);text-align:center;padding:30px 0;">😅 未找到 "${query}" 的相关信息，请尝试其他名称</div>`;
+                    return;
+                }
+                // 将AI回复中的标题提取为标签块
+                const reply = data.reply;
+                const sections = reply.split(/\n(?=💊|📋|⚠️|💡)/);
+                let html = '<div class="drug-item">';
+                sections.forEach(s => {
+                    if (s.trim()) {
+                        if (s.includes('💊')) html += `<div class="dname" style="margin-top:8px;">${s.trim()}</div>`;
+                        else if (s.includes('⚠️')) html += `<div class="dinfo" style="color:var(--red);margin-top:6px;">${s.trim()}</div>`;
+                        else if (s.includes('💡')) html += `<div class="dinfo" style="color:var(--blue);margin-top:6px;">${s.trim()}</div>`;
+                        else if (s.includes('📋')) html += `<div class="dinfo" style="color:var(--text-dark);margin-top:6px;">${s.trim()}</div>`;
+                        else html += `<div class="dinfo" style="margin-top:6px;">${s.trim()}</div>`;
+                    }
+                });
+                html += '</div>';
+                container.innerHTML = html;
+                toast(`✅ 已查到 "${query}" 的信息`);
+                speak(`已查到 ${query} 的信息`);
+            } catch (e) {
+                container.innerHTML = `<div style="font-size:24px;color:var(--red);text-align:center;padding:30px 0;">😅 查询失败：${e.message}</div>`;
+                toast('查询失败，请重试');
+            }
+        }
+
+        document.getElementById('drugSearchInput')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') searchDrugs();
+        });
+
+        // ================================================================
+        //  初始化
+        // ================================================================
+        function initDemoData() {
+            const today = getToday();
+            APP.medications = [
+                { id: 'd1', name: '阿莫西林', time: '08:00', date: today, taken: false },
+                { id: 'd2', name: '阿莫西林', time: '14:00', date: today, taken: false },
+                { id: 'd3', name: '阿莫西林', time: '20:00', date: today, taken: false },
+                { id: 'd4', name: '降压药', time: '07:30', date: today, taken: false },
+            ];
+            APP.history = [
+                { time: '2026-07-17 07:30', name: '降压药', status: '已吃' },
+                { time: '2026-07-17 08:00', name: '阿莫西林', status: '已吃' },
+            ];
+            saveData();
+        }
+
+        // ================================================================
+        //  全局暴露
+        // ================================================================
+        window.showPage = showPage;
+        window.goBack = goBack;
+        window.handleLogin = handleLogin;
+        window.handleRegister = handleRegister;
+        window.enterRole = enterRole;
+        window.logout = logout;
+        window.toggleVoiceRecording = toggleVoiceRecording;
+        window.quickQuestion = quickQuestion;
+        window.triggerCamera = triggerCamera;
+        window.addToReminderFromDrug = addToReminderFromDrug;
+        window.triggerSOS = triggerSOS;
+        window.cancelSOS = cancelSOS;
+        window.confirmMedication = confirmMedication;
+        window.snoozeMedication = snoozeMedication;
+        window.closeMedicationPopup = closeMedicationPopup;
+        window.addTestReminder = addTestReminder;
+        window.apiCall = apiCall;
+        window.loadVoices = loadVoices;
+        window.switchAssistTab = switchAssistTab;
+        window.saveSettings = saveSettings;
+        window.adjustFontSize = adjustFontSize;
+        window.updateSpeechRate = updateSpeechRate;
+        window.updateVolume = updateVolume;
+        window.addDrugByAssistant = addDrugByAssistant;
+        window.searchDrugs = searchDrugs;
+        window.renderReminderList = renderReminderList;
+        window.renderElderlyReminders = renderElderlyReminders;
+        window.updateTodayStats = updateTodayStats;
+        window.renderAssistHome = renderAssistHome;
+        window.updateAssistStats = updateAssistStats;
+        window.renderAssistHistory = renderAssistHistory;
+        window.triggerMedicationPopup = triggerMedicationPopup;
+        window.deleteReminder = deleteReminder;
+        window.editReminder = editReminder;
+        window.cancelEditMedication = cancelEditMedication;
+        window.renderAssistMedications = renderAssistMedications;
+        window.deleteAccount = deleteAccount;
+        window.updateElderlyDialectDisplay = updateElderlyDialectDisplay;
+        window.toggleSpeech = toggleSpeech;
+
+        showPage('page-login', false);
+        console.log('💊 知药智能助手（电脑版）已启动！');
+    </script>
+</body>
+</html>

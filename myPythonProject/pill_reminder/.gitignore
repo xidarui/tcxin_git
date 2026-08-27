@@ -1,0 +1,15 @@
+# API密钥
+.env
+
+# Python缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 音频输出
+*.wav
+output.pcm
+
+# IDE
+.idea/
+.vscode/
