@@ -14,6 +14,7 @@ import os
 import sys
 import uuid
 import logging
+from datetime import datetime
 
 # 确保能找到 pill_reminder 包
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -37,11 +38,61 @@ if _missing:
 from pill_reminder.ai.chat import chat_with_context, clear_history
 from pill_reminder.ocr.client import universal_ocr
 from pill_reminder.speech.tts import speech_synthesis
+from pill_reminder.db import repo as db_repo
+from pill_reminder.reminder.alarm import AlarmScheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="知药智能服药助手")
+
+# ========================
+#  数据库 & 闹钟初始化
+# ========================
+
+_db_ready = True
+try:
+    db_repo.init_tables()
+    logger.info("数据库已就绪")
+except Exception as _e:  # noqa: BLE001 - 数据库挂了服务仍要能起，只是相关接口报错
+    _db_ready = False
+    logger.warning(f"数据库初始化失败，数据相关接口将不可用: {_e}")
+
+
+def _alarm_tts(text: str) -> None:
+    """闹钟到点 → 服务器本机声卡播报"""
+    try:
+        speech_synthesis("x4_yezi", text)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"闹钟语音播报失败: {exc}")
+
+
+def _alarm_on_fire(alarm: dict) -> None:
+    """闹钟触发 → 写一条待服药记录"""
+    try:
+        db_repo.record_dose(
+            alarm.get("medication", "未知药品"),
+            plan_id=alarm.get("plan_id"),
+            status="pending",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"写服药记录失败: {exc}")
+
+
+_scheduler = AlarmScheduler(_alarm_tts, on_fire=_alarm_on_fire)
+
+
+def _reload_alarms() -> int:
+    """把数据库里启用的提醒计划重新装载到调度器，返回装载数量"""
+    if not _db_ready:
+        return 0
+    try:
+        plans = db_repo.load_plan_dicts(active_only=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"读取提醒计划失败: {exc}")
+        return 0
+    _scheduler.set_alarms(plans)
+    return len(plans)
 
 # ========================
 #  Pydantic 请求/响应模型
@@ -82,6 +133,74 @@ _VOICES = {
     "x2_xiaokun": "河南话",
     "x3_xiaodu": "成都话",
 }
+
+# 启动时恢复上次保存的提醒计划（数据库不可用则跳过）
+try:
+    _restored = _reload_alarms()
+    if _restored:
+        logger.info(f"已从数据库恢复 {_restored} 个提醒计划")
+except Exception as _e:  # noqa: BLE001
+    logger.warning(f"恢复提醒计划失败: {_e}")
+
+
+# ========================
+#  数据库相关 Pydantic 模型
+# ========================
+
+class PlanIn(BaseModel):
+    time: str
+    medication: str
+    note: str = ""
+
+
+class PlanOut(BaseModel):
+    id: int
+    time: str
+    medication: str
+    note: str = ""
+    enabled: bool = True
+    repeat_daily: bool = True
+
+
+class PlanToggle(BaseModel):
+    enabled: bool
+
+
+class LogOut(BaseModel):
+    id: int
+    plan_id: int | None = None
+    medication_name: str
+    scheduled_at: datetime | None = None
+    taken_at: datetime | None = None
+    status: str
+
+
+class MessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    source: str
+    created_at: datetime | None = None
+
+
+class CheckinIn(BaseModel):
+    plan_id: int
+
+
+class TodayOut(BaseModel):
+    id: int
+    time: str
+    medication: str
+    note: str = ""
+    taken: bool = False
+    status: str = "pending"
+    log_id: int | None = None
+
+
+def _require_db() -> None:
+    """数据库不可用时就返回 503，而不是抛一堆 500"""
+    if not _db_ready:
+        raise HTTPException(status_code=503, detail="数据库不可用，请检查 MySQL 服务")
 
 # ========================
 #  API 路由
@@ -187,7 +306,114 @@ def voices():
 def health():
     """健康检查"""
     missing = [k for k in ['APP_ID', 'API_KEY', 'API_SECRET'] if not os.getenv(k)]
-    return {"status": "ok" if not missing else "degraded", "missing_keys": missing}
+    return {
+        "status": "ok" if not missing else "degraded",
+        "missing_keys": missing,
+        "database": "ok" if _db_ready else "unavailable",
+        "armed_alarms": _scheduler.active_count,
+    }
+
+
+# ========================
+#  数据库接口：提醒计划 / 服药记录 / 对话历史
+# ========================
+
+@app.get("/api/plans", response_model=list[PlanOut], tags=["数据库"])
+def get_plans(active_only: bool = False):
+    """查询所有提醒计划"""
+    _require_db()
+    return db_repo.list_plans(active_only=active_only)
+
+
+@app.post("/api/plans", response_model=list[PlanOut], tags=["数据库"])
+def create_plans(items: list[PlanIn]):
+    """整批保存提醒计划
+
+    覆盖式语义：本次列表里没有的旧计划会被删除，并同步重新装载闹钟。
+    """
+    _require_db()
+    db_repo.save_plans([i.model_dump() for i in items])
+    _reload_alarms()
+    return db_repo.list_plans()
+
+
+@app.patch("/api/plans/{plan_id}", response_model=PlanOut, tags=["数据库"])
+def toggle_plan(plan_id: int, body: PlanToggle):
+    """启用 / 停用某个提醒计划"""
+    _require_db()
+    if not db_repo.set_plan_enabled(plan_id, body.enabled):
+        raise HTTPException(status_code=404, detail=f"计划 {plan_id} 不存在")
+    _reload_alarms()
+    for plan in db_repo.list_plans():
+        if plan["id"] == plan_id:
+            return plan
+    raise HTTPException(status_code=404, detail=f"计划 {plan_id} 不存在")
+
+
+@app.delete("/api/plans/{plan_id}", tags=["数据库"])
+def remove_plan(plan_id: int):
+    """删除某个提醒计划（历史服药记录会保留，plan_id 置空）"""
+    _require_db()
+    if not db_repo.delete_plan(plan_id):
+        raise HTTPException(status_code=404, detail=f"计划 {plan_id} 不存在")
+    _reload_alarms()
+    return {"deleted": plan_id}
+
+
+@app.get("/api/logs", response_model=list[LogOut], tags=["数据库"])
+def get_logs(limit: int = 50):
+    """查询服药记录"""
+    _require_db()
+    return db_repo.list_dose_logs(limit=max(1, min(limit, 500)))
+
+
+@app.post("/api/logs/{log_id}/taken", tags=["数据库"])
+def mark_log_taken(log_id: int):
+    """把某条记录标记为「已服药」"""
+    _require_db()
+    if not db_repo.mark_taken(log_id):
+        raise HTTPException(status_code=404, detail=f"记录 {log_id} 不存在")
+    return {"id": log_id, "status": "taken", "taken_at": datetime.now()}
+
+
+@app.get("/api/history", response_model=list[MessageOut], tags=["数据库"])
+def get_chat_history(limit: int = 50):
+    """查询对话历史"""
+    _require_db()
+    return db_repo.get_messages(limit=max(1, min(limit, 200)))
+
+
+@app.delete("/api/history", tags=["数据库"])
+def clear_chat_history():
+    """清空对话历史（内存 + 数据库）"""
+    _require_db()
+    removed = db_repo.clear_messages()
+    clear_history(clear_db=False)
+    return {"deleted": removed}
+
+
+@app.get("/api/stats", tags=["数据库"])
+def get_stats():
+    """各表行数汇总"""
+    _require_db()
+    return db_repo.stats()
+
+
+@app.get("/api/today", response_model=list[TodayOut], tags=["数据库"])
+def get_today():
+    """前端主用接口：今天的提醒计划 + 是否已服药"""
+    _require_db()
+    return db_repo.get_today_status()
+
+
+@app.post("/api/checkin", tags=["数据库"])
+def do_checkin(body: CheckinIn):
+    """网页端点「已服药」时调用，落到 dose_log 表"""
+    _require_db()
+    result = db_repo.checkin(body.plan_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"计划 {body.plan_id} 不存在")
+    return result
 
 # ========================
 #  启动

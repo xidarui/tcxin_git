@@ -1860,6 +1860,118 @@
             }
         }
 
+        // ================================================================
+        //  数据库同步（MySQL）
+        //  服务器可用时，数据库是提醒计划和服药记录的真源；
+        //  连不上则自动退回 localStorage，功能完全不受影响。
+        // ================================================================
+        const DB = { online: false, error: null, _busy: false };
+
+        function refreshReminderViews() {
+            renderReminderList();
+            renderElderlyReminders();
+            updateTodayStats();
+            renderAssistTodayReminders();
+            renderAssistMedications();
+            renderAssistHistory();
+            updateAssistStats();
+        }
+
+        // 从服务器拉今天的计划（含是否已服药）
+        async function dbPullToday() {
+            if (DB._busy) return false;
+            DB._busy = true;
+            try {
+                const rows = await apiCall('/api/today');
+                DB.online = true;
+                DB.error = null;
+                const today = getToday();
+                APP.medications = rows.map(r => ({
+                    id: 'p' + r.id,
+                    planId: r.id,
+                    name: r.medication,
+                    time: r.time,
+                    date: today,
+                    taken: !!r.taken,
+                    logId: r.log_id || null,
+                }));
+                saveData();
+                return true;
+            } catch (e) {
+                DB.online = false;
+                DB.error = (e && e.message) || String(e);
+                console.warn('[DB] 读取提醒计划失败，改用本地缓存：', DB.error);
+                return false;
+            } finally {
+                DB._busy = false;
+            }
+        }
+
+        // 把当前提醒列表整批写回服务器
+        async function dbPushPlans() {
+            try {
+                const payload = APP.medications.map(m => ({
+                    time: m.time,
+                    medication: m.name,
+                    note: '',
+                }));
+                await apiCall('/api/plans', { method: 'POST', body: JSON.stringify(payload) });
+                DB.online = true;
+                DB.error = null;
+                // 服务器会重建记录，拉回来拿最新的 plan id
+                await dbPullToday();
+                return true;
+            } catch (e) {
+                DB.online = false;
+                DB.error = (e && e.message) || String(e);
+                console.warn('[DB] 保存提醒计划失败：', DB.error);
+                toast('⚠️ 数据库未连接，数据暂存本机');
+                return false;
+            }
+        }
+
+        // 打卡：把「已服药」写进 dose_log 表
+        async function dbCheckin(item) {
+            if (!item || !item.planId) return false;
+            try {
+                await apiCall('/api/checkin', {
+                    method: 'POST',
+                    body: JSON.stringify({ plan_id: item.planId }),
+                });
+                DB.online = true;
+                return true;
+            } catch (e) {
+                console.warn('[DB] 打卡失败：', (e && e.message) || e);
+                return false;
+            }
+        }
+
+        // 服药记录从数据库读
+        async function dbLoadHistory() {
+            try {
+                const logs = await apiCall('/api/logs?limit=50');
+                const map = { taken: '已吃', missed: '漏服', pending: '待服', skipped: '跳过' };
+                APP.history = logs.map(l => ({
+                    time: (l.scheduled_at || '').replace('T', ' ').slice(0, 16),
+                    name: l.medication_name,
+                    status: map[l.status] || l.status,
+                }));
+                saveData();
+                return true;
+            } catch (e) {
+                console.warn('[DB] 读取服药记录失败：', (e && e.message) || e);
+                return false;
+            }
+        }
+
+        // 进入角色时整体刷新
+        async function dbRefreshAll() {
+            const ok = await dbPullToday();
+            if (ok) await dbLoadHistory();
+            refreshReminderViews();
+            return ok;
+        }
+
         // 页面加载时只加载全局设置
         try {
             const raw = localStorage.getItem('zhiyao_settings');
@@ -2010,6 +2122,8 @@
             primeAudio(); // 角色选择是用户手势，锁定音频
             APP.role = role;
             APP.pageHistory = [];
+            // 从 MySQL 拉最新的提醒计划 + 服药记录；服务器不可用时静默退回本地缓存
+            await dbRefreshAll();
             if (role === 'elderly') {
                 showPage('page-elderly-home', false);
                 renderElderlyReminders();
@@ -2126,10 +2240,12 @@
             const total = items.length;
             const done = items.filter(m => m.taken).length;
             const rate = total > 0 ? Math.round(done / total * 100) : 0;
-            document.getElementById('todayStats').textContent = `已吃 ${done} 次 · 待吃 ${total - done} 次 · 依从率 ${rate}%`;
+            const syncTag = DB.online ? ' · ☁️ 已存数据库' : ' · 💾 仅本机';
+            document.getElementById('todayStats').textContent =
+                `已吃 ${done} 次 · 待吃 ${total - done} 次 · 依从率 ${rate}%` + syncTag;
         }
 
-        function addTestReminder() {
+        async function addTestReminder() {
             const names = ['阿莫西林', '降压药', '阿司匹林', '二甲双胍'];
             const name = names[Math.floor(Math.random() * names.length)];
             const hour = 8 + Math.floor(Math.random() * 10);
@@ -2143,24 +2259,20 @@
                 taken: false,
             });
             saveData();
-            renderReminderList();
-            renderElderlyReminders();
-            updateTodayStats();
+            refreshReminderViews();
             toast(`已添加 ${name} ${time} 提醒`);
             speak(`已添加 ${name} 服药提醒`);
+            // 写进数据库，重新渲染（服务器回的 id 才是真的 plan id）
+            if (await dbPushPlans()) refreshReminderViews();
         }
 
-        function deleteReminder(id) {
+        async function deleteReminder(id) {
             if (!confirm('确定要删除这条服药提醒吗？')) return;
             APP.medications = APP.medications.filter(m => m.id !== id);
             saveData();
-            renderReminderList();
-            renderElderlyReminders();
-            updateTodayStats();
-            updateAssistStats();
-            renderAssistTodayReminders();
-            renderAssistMedications();
+            refreshReminderViews();
             toast('已删除服药提醒');
+            if (await dbPushPlans()) refreshReminderViews();
         }
 
         function renderAssistMedications() {
@@ -2204,7 +2316,7 @@
             toast('正在编辑，修改后点击保存');
         }
 
-        function saveEditedMedication() {
+        async function saveEditedMedication() {
             const id = APP._editingId;
             if (!id) { cancelEditMedication(); return; }
             const med = APP.medications.find(m => m.id === id);
@@ -2218,12 +2330,8 @@
             saveData();
             toast('✅ 已更新服药提醒');
             cancelEditMedication();
-            renderReminderList();
-            renderElderlyReminders();
-            updateTodayStats();
-            updateAssistStats();
-            renderAssistTodayReminders();
-            renderAssistMedications();
+            refreshReminderViews();
+            if (await dbPushPlans()) refreshReminderViews();
         }
 
         function cancelEditMedication() {
@@ -2249,7 +2357,7 @@
             speak(`吃药时间到了，请服用 ${drugName}`);
         }
 
-        function confirmMedication() {
+        async function confirmMedication() {
             const popup = document.getElementById('medicationPopup');
             const name = APP.popupDrug ? APP.popupDrug.name : '药物';
             const today = getToday();
@@ -2260,11 +2368,12 @@
                 saveData();
                 toast(`✅ 已记录 ${name} 已服用`);
                 speak(`好的，已记录 ${name} 已服用`);
-                renderReminderList();
-                renderElderlyReminders();
-                updateTodayStats();
-                updateAssistStats();
-                renderAssistHistory();
+                refreshReminderViews();
+                // 写进 dose_log 表，再用数据库里的记录刷新历史列表
+                if (await dbCheckin(item)) {
+                    await dbLoadHistory();
+                    refreshReminderViews();
+                }
             } else {
                 toast('已记录');
             }
@@ -2516,7 +2625,7 @@
             fileInput.click();
         }
 
-        function addToReminderFromDrug() {
+        async function addToReminderFromDrug() {
             const name = APP._lastOcrDrugName || document.getElementById('drugResultName').textContent.replace('💊 ', '') || '识别药品';
             const now = new Date();
             const hour = (now.getHours() + 1) % 24;  // 建议一小时后
@@ -2530,11 +2639,10 @@
                 taken: false,
             });
             saveData();
-            renderReminderList();
-            renderElderlyReminders();
-            updateTodayStats();
+            refreshReminderViews();
             toast(`✅ 已加入提醒：${name} ${time}`);
             speak(`已加入吃药提醒`);
+            if (await dbPushPlans()) refreshReminderViews();
         }
 
         // ================================================================
@@ -2741,7 +2849,7 @@
             return times;
         }
 
-        function addDrugByAssistant() {
+        async function addDrugByAssistant() {
             const name = document.getElementById('assistDrugName').value.trim();
             const times = getTimeValues();
             if (!name) { toast('请输入药品名称'); return; }
@@ -2756,16 +2864,12 @@
                 });
             });
             saveData();
+            refreshReminderViews();
             toast(`✅ 已添加 ${name}，每日${times.length}次`);
             speak(`已添加 ${name} 用药计划`);
-            renderAssistTodayReminders();
-            updateAssistStats();
-            renderAssistMedications();
-            renderReminderList();
-            renderElderlyReminders();
-            updateTodayStats();
             document.getElementById('assistDrugName').value = '';
             updateTimePickers();
+            if (await dbPushPlans()) refreshReminderViews();
         }
 
         // ================================================================

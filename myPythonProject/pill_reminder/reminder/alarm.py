@@ -101,12 +101,19 @@ def parse_schedule(ai_reply: str) -> list[dict]:
 class AlarmScheduler:
     """闹钟调度器 — 到点自动播报语音"""
 
-    def __init__(self, tts_callback: Callable[[str], None]):
+    def __init__(
+        self,
+        tts_callback: Callable[[str], None],
+        on_fire: Callable[[dict], None] | None = None,
+    ):
         """
         Args:
             tts_callback: 到点触发的函数，接收播报文字
+            on_fire: 可选的额外回调，接收该闹钟的原始 dict
+                     （用来写数据库：闹钟一响就记一条 dose_log）
         """
         self.tts_callback = tts_callback
+        self.on_fire = on_fire
         self._timers = []
 
     def set_alarms(self, alarms: list[dict]) -> None:
@@ -139,9 +146,15 @@ class AlarmScheduler:
 
                 # 使用带标识的定时器，方便追踪已触发的闹钟
                 alarm_id = {"fired": False, "timer": None}
-                def on_alarm_with_cleanup(tid=alarm_id, t=text):
+                def on_alarm_with_cleanup(tid=alarm_id, t=text, raw=dict(alarm)):
                     tid["fired"] = True
                     logger.info(f"⏰ 闹钟触发: {t}")
+                    # 先落库：即使语音播报失败，服药记录也不能丢
+                    if self.on_fire:
+                        try:
+                            self.on_fire(raw)
+                        except Exception as exc:  # noqa: BLE001
+                            logger.error(f"闹钟回调写库失败: {exc}")
                     if self.tts_callback:
                         self.tts_callback(t)
 

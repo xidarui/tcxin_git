@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import warnings
+from datetime import datetime
 
 # 屏蔽 langchain 旧版 API 警告（spark-ai-python 依赖的旧版 langchain 触发）
 warnings.filterwarnings("ignore", category=UserWarning, module="langchain")
@@ -15,6 +16,7 @@ from speech.iat import microphone_stream
 from speech.tts import speech_synthesis
 from ai.chat import chat_with_context, clear_history, analyze_medication_schedule
 from reminder.alarm import AlarmScheduler, parse_schedule
+from db import repo as db_repo
 
 # ---------- 日志配置 ----------
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +39,46 @@ _current_voice_name = "普通话"
 
 # 全局闹钟调度器
 _alarm_scheduler = None
+
+
+def _record_alarm_fired(alarm: dict):
+    """闹钟触发回调 → 往 dose_log 表写一条「待服药」记录"""
+    try:
+        log_id = db_repo.record_dose(
+            alarm.get("medication", "未知药品"),
+            scheduled_at=datetime.now(),
+            plan_id=alarm.get("plan_id"),  # 挂到具体计划，避免同药不同时间混淆
+            status="pending",
+        )
+        print(f"📝 已记录本次服药提醒（记录号 {log_id}）")
+    except Exception as e:
+        logger.error(f"写服药记录失败: {e}")
+
+
+def _create_scheduler() -> AlarmScheduler:
+    """获取（必要时创建）全局闹钟调度器，并挂上写库回调"""
+    global _alarm_scheduler
+    if _alarm_scheduler is None:
+        _alarm_scheduler = AlarmScheduler(speak, on_fire=_record_alarm_fired)
+    return _alarm_scheduler
+
+
+def _restore_alarms():
+    """启动时把数据库里保存的提醒计划重新装回调度器
+
+    这就是加数据库最直接的收益：以前关掉程序闹钟就没了，现在能恢复。
+    """
+    try:
+        plans = db_repo.load_plan_dicts(active_only=True)
+    except Exception as e:  # noqa: BLE001 - 数据库挂了不该拖垮整个程序
+        print(f"⚠️ 读取数据库失败，本次跳过自动恢复：{e}")
+        return
+    if not plans:
+        return
+    _create_scheduler().set_alarms(plans)
+    print(f"⏰ 已从数据库恢复 {len(plans)} 个提醒计划：")
+    for p in plans:
+        print(f"   {p['time']} → {p['medication']}")
 
 
 def speak(text: str):
@@ -78,7 +120,7 @@ def ocr_and_chat():
             print("未识别到文字，请重试。")
             return
         print(f"📝 识别到文字:\n{image_text}\n")
-        reply, _ = chat_with_context(image_text=image_text)
+        reply, _ = chat_with_context(image_text=image_text, source="ocr")
         print(f"\n🤖 AI回答:\n{reply}\n")
         speak(reply)
     except FileNotFoundError as e:
@@ -98,7 +140,7 @@ def voice_chat():
         print("未识别到有效语音。")
         return
     print(f"📝 识别结果: {text}\n")
-    reply, _ = chat_with_context(text=text)
+    reply, _ = chat_with_context(text=text, source="voice")
     print(f"🤖 AI回答:\n{reply}\n")
     speak(reply)
 
@@ -134,7 +176,7 @@ def hybrid_chat():
         print(f"📝 语音识别: {text}\n")
 
     # 第三步：AI综合回答
-    reply, _ = chat_with_context(text=text, image_text=image_text)
+    reply, _ = chat_with_context(text=text, image_text=image_text, source="mixed")
     print(f"🤖 AI回答:\n{reply}\n")
     speak(reply)
 
@@ -178,13 +220,42 @@ def setup_reminder():
 
         confirm = input("\n是否设置闹钟？(y/n, 默认y): ").strip().lower()
         if confirm != 'n':
-            if _alarm_scheduler is None:
-                _alarm_scheduler = AlarmScheduler(speak)
-            _alarm_scheduler.set_alarms(alarms)
+            # 先落库：这样下次启动能自动恢复，程序关掉计划也不丢
+            try:
+                saved_ids = db_repo.save_plans(alarms)
+                print(f"💾 已保存 {len(saved_ids)} 条提醒计划到数据库")
+            except Exception as e:
+                logger.error(f"保存提醒计划失败: {e}")
+                print(f"⚠️ 提醒计划未能保存到数据库：{e}")
+
+            _create_scheduler().set_alarms(alarms)
             print(f"✅ 已设置 {len(alarms)} 个闹钟，到点将自动语音提醒！")
     else:
         print("⚠️ 未能从AI回复中解析出具体时间信息。")
         print("已语音播报AI建议，请手动设置服药时间。")
+
+
+def show_dose_logs(limit: int = 10):
+    """📋 从数据库读取最近的服药记录"""
+    print(f"\n📋 最近 {limit} 条服药记录")
+    try:
+        logs = db_repo.list_dose_logs(limit)
+    except Exception as e:
+        print(f"❌ 读取服药记录失败：{e}")
+        return
+    if not logs:
+        print("   暂无记录。设置提醒并等到闹钟触发后，这里就会有数据。")
+        return
+
+    status_cn = {
+        "pending": "待服",
+        "taken": "已服",
+        "missed": "漏服",
+        "skipped": "跳过",
+    }
+    for log in logs:
+        when = log["scheduled_at"].strftime("%Y-%m-%d %H:%M") if log["scheduled_at"] else "-"
+        print(f"   #{log['id']:<3} {when}  {log['medication_name']}  [{status_cn.get(log['status'], log['status'])}]")
 
 
 def main():
@@ -194,6 +265,9 @@ def main():
     print("=" * 40)
     print("      💊 智能提醒吃药系统")
     print("=" * 40)
+
+    # 启动时尝试恢复历史提醒计划（数据库连不上也不影响其他功能）
+    _restore_alarms()
 
     while True:
         print(f"\n当前方言: {_current_voice_name}")
@@ -206,6 +280,7 @@ def main():
         print("4. ⏰ 设置定时提醒（拍药方 → AI分析 → 闹钟）")
         print("5. 🗣️ 方言切换")
         print("6. 🧹 重置对话")
+        print("7. 📋 查看服药记录")
         print("0. 🚪 退出")
         print("-" * 30)
 
@@ -225,6 +300,8 @@ def main():
             elif choice == "6":
                 clear_history()
                 print("🧹 对话历史已重置")
+            elif choice == "7":
+                show_dose_logs()
             elif choice == "0":
                 speak("感谢您的使用！祝您康健相伴，福寿无忧！")
                 print("感谢使用，再见！")
