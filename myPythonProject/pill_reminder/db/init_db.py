@@ -17,13 +17,17 @@ import sys
 from datetime import datetime, timedelta
 
 from . import repo
-from .base import DB_HOST, DB_NAME, DB_PORT, DB_USER, ping
+from .base import DB_HOST, DB_NAME, DB_PORT, DB_USER, env_hint, ping
 
 
 def show_status() -> None:
+    hint = env_hint()
+    if hint:
+        print("[WARN] " + hint.replace("\n", "\n        "))
+        print()
     print(f"连接目标 : {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
     if not ping():
-        print("[FAIL] 数据库连不上，请检查 MySQL 服务是否启动、.env 里的账号密码是否正确")
+        print("[FAIL] 数据库连不上 —— 请确认 MySQL 服务已启动，且 .env 里的账号密码正确")
         sys.exit(1)
     print("[ OK ] 数据库连接正常")
     for key, value in repo.stats().items():

@@ -11,6 +11,8 @@ venv/
 # 密钥（讯飞 APP_ID / API_KEY / API_SECRET 和数据库密码）
 .env
 .env.*
+# 模板文件必须提交，否则别人 clone 下来不知道要配哪些项
+!.env.example
 
 # 运行产物
 *.wav

@@ -26,7 +26,17 @@ logger = logging.getLogger(__name__)
 _ENV_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"
 )
+_ENV_EXAMPLE = os.path.join(os.path.dirname(_ENV_PATH), ".env.example")
+ENV_EXISTS = os.path.isfile(_ENV_PATH)
+
 load_dotenv(_ENV_PATH)
+
+if not ENV_EXISTS:
+    logger.warning(
+        "未找到配置文件 %s —— 数据库和讯飞密钥都读不到。"
+        "请把 .env.example 复制成 .env 再填写（Windows: copy .env.example .env）。",
+        _ENV_PATH,
+    )
 
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
 DB_PORT = int(os.getenv("DB_PORT") or 3306)
@@ -46,6 +56,34 @@ def build_url(driver: str = "mysql+pymysql") -> str:
 
 class Base(DeclarativeBase):
     """所有 ORM 模型的基类"""
+
+
+def env_hint() -> str:
+    """检查配置是否齐全，返回给人看的提示（空字符串表示没问题）
+
+    新机器上最常踩的坑就是「clone 下来没有 .env」，
+    光报 Access denied 根本看不出原因，所以单独给一条明确指引。
+    """
+    if not ENV_EXISTS:
+        return (
+            "缺少配置文件: " + _ENV_PATH + "\n"
+            "  解决: 在 pill_reminder 目录下执行 copy .env.example .env，\n"
+            "        再填入讯飞 APP_ID/API_KEY/API_SECRET 和数据库密码"
+        )
+
+    missing = [k for k in ("APP_ID", "API_KEY", "API_SECRET") if not os.getenv(k)]
+    if missing:
+        return f".env 里缺少讯飞凭证: {', '.join(missing)}（AI/OCR/语音功能会不可用）"
+
+    if not os.getenv("DB_PASSWORD"):
+        return ".env 里没有填 DB_PASSWORD，数据库连不上"
+
+    return ""
+
+
+def env_ready() -> bool:
+    """配置是否齐全"""
+    return env_hint() == ""
 
 
 _engine: Engine | None = None
@@ -121,4 +159,7 @@ def ping() -> bool:
         return True
     except Exception as exc:  # noqa: BLE001 - 探活要吞掉所有异常
         logger.warning("数据库连接失败: %s", exc)
+        hint = env_hint()
+        if hint:
+            logger.warning(hint)
         return False
