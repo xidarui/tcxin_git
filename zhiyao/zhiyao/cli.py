@@ -2,7 +2,7 @@
 
 启动::
 
-    python -m zhiyao.cli          # 在仓库根目录执行
+    python -m zhiyao.cli          # 在项目目录执行
 """
 import os
 import sys
@@ -13,7 +13,7 @@ from datetime import datetime
 # 屏蔽 langchain 旧版 API 警告（spark-ai-python 依赖的旧版 langchain 触发）
 warnings.filterwarnings("ignore", category=UserWarning, module="langchain")
 
-# 支持直接 `python zhiyao/cli.py` 运行：把仓库根加进 sys.path
+# 支持直接 `python zhiyao/cli.py` 运行：把项目目录加进 sys.path
 if __package__ in (None, ""):  # pragma: no cover
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

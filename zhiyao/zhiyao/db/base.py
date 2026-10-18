@@ -1,7 +1,7 @@
 """数据库连接管理 — 引擎 / 会话 / ORM 基类
 
 设计要点：
-1. 所有连接参数都从仓库根的 .env 读取，代码里不硬编码密码。
+1. 所有连接参数都从项目目录的 .env 读取，代码里不硬编码密码。
 2. 引擎是「懒加载」的：只有真正执行 SQL 时才建立连接，
    这样数据库没启动也不会导致 import 阶段就崩掉。
 3. 对外主要用 session_scope() 上下文管理器，自动 commit / rollback / close，
@@ -67,7 +67,7 @@ def env_hint() -> str:
     if not ENV_EXISTS:
         return (
             "缺少配置文件: " + _ENV_PATH + "\n"
-            "  解决: 在仓库根目录执行 copy .env.example .env，\n"
+            "  解决: 在项目目录执行 copy .env.example .env，\n"
             "        再填入讯飞 APP_ID/API_KEY/API_SECRET 和数据库密码"
         )
 

@@ -1,6 +1,6 @@
 """环境自检与一键初始化
 
-在仓库根目录执行::
+在项目目录（zhiyao/）下执行::
 
     python setup_env.py                 # 自检 + 建表（最常用）
     python setup_env.py --check         # 只自检，不改任何东西
@@ -167,11 +167,11 @@ def check_db(create_tables: bool, demo: bool) -> bool:
             print("       还没建账号的话，执行：")
             print("       python setup_env.py --create-db --admin-user root --admin-password 你的root密码")
         elif "Unknown database" in err:
-            _fail("数据库还不存在 —— " + err)
+            _fail("数据库还不存仓 —— " + err)
             print("       执行: python setup_env.py --create-db --admin-user root --admin-password 你的root密码")
         elif "Can't connect" in err or "refused" in err.lower():
             _fail("MySQL 服务没起来 —— " + err)
-            print("       Windows: 在 services.msc 里启动 MySQL80 服务")
+            print("       Windows: 仓 services.msc 里启动 MySQL80 服务")
             print("       macOS:   brew services start mysql")
         else:
             _fail("连不上数据库 —— " + (err or "未知原因"))
@@ -226,7 +226,7 @@ def create_database(admin_user: str, admin_password: str, admin_host: str, admin
                     "CREATE USER IF NOT EXISTS %s@%s IDENTIFIED BY %s",
                     (DB_USER, host, DB_PASSWORD),
                 )
-                # 账号已存在时 CREATE USER 不会改密码，这里强制同步成 .env 里的值
+                # 账号已存仓时 CREATE USER 不会改密码，这里强制同步成 .env 里的值
                 cur.execute(
                     "ALTER USER %s@%s IDENTIFIED BY %s",
                     (DB_USER, host, DB_PASSWORD),

@@ -1,6 +1,6 @@
 """数据库 + API 冒烟测试
 
-不依赖 pytest，在仓库根目录直接跑::
+不依赖 pytest，在项目目录直接跑::
 
     python tests/test_db_smoke.py
 
@@ -18,7 +18,7 @@ import sys
 import urllib.error
 import urllib.request
 
-# 允许从任意工作目录直接运行：把仓库根加进 sys.path
+# 允许从任意工作目录直接运行：把项目目录加进 sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from zhiyao.db import ping, repo  # noqa: E402

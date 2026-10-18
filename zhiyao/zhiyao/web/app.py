@@ -3,7 +3,7 @@
 
 启动方式::
 
-    python -m zhiyao.web.app          # 在仓库根目录执行
+    python -m zhiyao.web.app          # 在项目目录执行
 
 访问地址: http://localhost:8000
 
@@ -20,7 +20,7 @@ import uuid
 import logging
 from datetime import datetime
 
-# 支持直接 `python zhiyao/web/app.py` 运行：把仓库根加进 sys.path
+# 支持直接 `python zhiyao/web/app.py` 运行：把项目目录加进 sys.path
 if __package__ in (None, ""):  # pragma: no cover
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 

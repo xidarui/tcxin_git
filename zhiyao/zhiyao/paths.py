@@ -3,7 +3,7 @@
 所有要读写文件的地方统一从这里取路径，好处是不管从哪个工作目录启动
 （网页版 / 命令行版 / 测试脚本），拿到的都是同一个位置：
 
-    <仓库根>/
+    <项目目录>/
     ├── .env                 配置（git 忽略）
     ├── .env.example         配置模板
     ├── assets/samples/      OCR 测试图片
@@ -16,7 +16,7 @@
 """
 from pathlib import Path
 
-# zhiyao/paths.py 往上两级就是仓库根
+# zhiyao/paths.py 往上两级就是项目目录
 ROOT = Path(__file__).resolve().parents[1]
 
 ENV_FILE = ROOT / ".env"

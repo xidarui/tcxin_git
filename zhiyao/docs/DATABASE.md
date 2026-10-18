@@ -77,7 +77,7 @@ FLUSH PRIVILEGES;
 
 ### 2. 配 `.env`
 
-在仓库根的 `.env` 里加：
+在项目目录的 `.env` 里加：
 
 ```ini
 DB_HOST=127.0.0.1
@@ -93,7 +93,7 @@ DB_ECHO=0
 ### 3. 建表
 
 ```bash
-# 在仓库根目录执行
+# 在项目目录（zhiyao/）下执行
 python -m zhiyao.db.init_db          # 建表
 python -m zhiyao.db.init_db --demo   # 建表 + 演示数据
 python -m zhiyao.db.init_db --check  # 只检查连接
@@ -188,7 +188,7 @@ curl -X POST http://localhost:8000/api/plans \
 ## 七、自测
 
 ```bash
-# 在仓库根目录执行
+# 在项目目录（zhiyao/）下执行
 
 # 只测数据库层
 python tests/test_db_smoke.py
