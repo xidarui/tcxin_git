@@ -6,7 +6,9 @@ import logging
 from dotenv import load_dotenv
 from xfyunsdkspeech.iat_client import IatClient
 
-load_dotenv()
+from ..paths import ENV_FILE
+
+load_dotenv(str(ENV_FILE))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

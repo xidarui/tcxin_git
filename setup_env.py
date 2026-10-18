@@ -1,6 +1,6 @@
 """环境自检与一键初始化
 
-用法::
+在仓库根目录执行::
 
     python setup_env.py                 # 自检 + 建表（最常用）
     python setup_env.py --check         # 只自检，不改任何东西
@@ -71,7 +71,7 @@ def check_python() -> bool:
 
 def check_env(fix: bool) -> bool:
     print("\n== 2. 配置文件 .env ==")
-    from pill_reminder.db import base
+    from zhiyao.db import base
 
     env_path, example = base._ENV_PATH, base._ENV_EXAMPLE
     env_rel = os.path.relpath(env_path, _HERE)
@@ -127,7 +127,7 @@ def check_deps() -> bool:
 
     if missing:
         _fail("缺少依赖: " + ", ".join(missing))
-        print(f"       执行: pip install -r {os.path.join('pill_reminder', 'requirements.txt')}")
+        print(f"       执行: pip install -r {'requirements.txt'}")
         return False
     _ok(f"必需依赖齐全（{len(REQUIRED_MODULES)} 个）")
 
@@ -143,7 +143,7 @@ def _db_error() -> str:
     from sqlalchemy import text
     from sqlalchemy.exc import SQLAlchemyError
 
-    from pill_reminder.db.base import get_engine
+    from zhiyao.db.base import get_engine
 
     try:
         with get_engine().connect() as conn:
@@ -156,8 +156,8 @@ def _db_error() -> str:
 
 def check_db(create_tables: bool, demo: bool) -> bool:
     print("\n== 4. 数据库 ==")
-    from pill_reminder.db import repo
-    from pill_reminder.db.base import DB_HOST, DB_NAME, DB_PORT, DB_USER, ping
+    from zhiyao.db import repo
+    from zhiyao.db.base import DB_HOST, DB_NAME, DB_PORT, DB_USER, ping
 
     print(f"       连接目标: {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
     if not ping():
@@ -183,7 +183,7 @@ def check_db(create_tables: bool, demo: bool) -> bool:
         _ok("数据表已就绪")
 
     if demo:
-        from pill_reminder.db.init_db import seed_demo
+        from zhiyao.db.init_db import seed_demo
 
         seed_demo()
 
@@ -197,7 +197,7 @@ def create_database(admin_user: str, admin_password: str, admin_host: str, admin
     print("\n== 4a. 创建数据库与账号 ==")
     import pymysql
 
-    from pill_reminder.db.base import DB_NAME, DB_PASSWORD, DB_USER
+    from zhiyao.db.base import DB_NAME, DB_PASSWORD, DB_USER
 
     if not DB_PASSWORD:
         _fail(".env 里 DB_PASSWORD 为空，先填好再来建库")
@@ -289,8 +289,8 @@ def main() -> None:
         _ok("全部就绪")
         if not args.check:
             print("\n下一步：")
-            print("   网页版   python app.py        -> http://localhost:8000")
-            print("   命令行版 cd pill_reminder && python main.py")
+            print("   网页版   python -m zhiyao.web.app   -> http://localhost:8000")
+            print("   命令行版 python -m zhiyao.cli")
     else:
         _fail("数据库还没通，见上面第 4 节的排查顺序")
         sys.exit(1)

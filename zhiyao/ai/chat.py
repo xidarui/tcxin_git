@@ -10,17 +10,10 @@ from dotenv import load_dotenv
 from sparkai.llm.llm import ChatSparkLLM
 from sparkai.core.messages import ChatMessage
 
-# 兼容两种导入方式：
-#   main.py 走的是 "from ai.chat import ..."（pill_reminder 在 sys.path 上）
-#   app.py  走的是 "from pill_reminder.ai.chat import ..."
-try:
-    from db import repo as db_repo
-except ImportError:  # pragma: no cover
-    from pill_reminder.db import repo as db_repo
+from ..db import repo as db_repo
+from ..paths import ENV_FILE
 
-_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
-load_dotenv(_env_path)
-load_dotenv()
+load_dotenv(str(ENV_FILE))
 
 # spark-ai-python v0.4.5 要求 IFLYTEK_SPARK_ 前缀的环境变量
 # 从现有的 APP_ID/API_KEY/API_SECRET 映射过去

@@ -17,6 +17,7 @@ venv/
 # 运行产物
 *.wav
 output.pcm
+assets/output/          # 语音合成产物落这里（wav 已由上一条忽略）
 _tmp_ocr_*
 _tmp_tts_*
 

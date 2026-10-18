@@ -7,7 +7,9 @@ import httpx
 from dotenv import load_dotenv
 from xfyunsdkcore.signature import Signature
 
-load_dotenv()
+from ..paths import DEFAULT_SAMPLE_IMAGE, ENV_FILE
+
+load_dotenv(str(ENV_FILE))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +22,7 @@ def universal_ocr(image_path: str = None) -> list[str]:
     """通用文字识别
 
     Args:
-        image_path: 图片路径，默认使用项目根目录的 picture.jpg
+        image_path: 图片路径，不传则用 assets/samples/picture.jpg
 
     Returns:
         list[str]: 识别到的文本行列表
@@ -35,9 +37,7 @@ def universal_ocr(image_path: str = None) -> list[str]:
 
     try:
         if image_path is None:
-            image_path = os.path.abspath(os.path.join(
-                os.path.dirname(__file__), '..', 'picture.jpg'
-            ))
+            image_path = str(DEFAULT_SAMPLE_IMAGE)
         elif not os.path.isabs(image_path):
             image_path = os.path.abspath(image_path)
 

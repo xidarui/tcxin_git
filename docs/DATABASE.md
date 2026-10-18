@@ -77,7 +77,7 @@ FLUSH PRIVILEGES;
 
 ### 2. 配 `.env`
 
-在 `pill_reminder/.env` 里加：
+在仓库根的 `.env` 里加：
 
 ```ini
 DB_HOST=127.0.0.1
@@ -93,10 +93,10 @@ DB_ECHO=0
 ### 3. 建表
 
 ```bash
-cd myPythonProject
-python -m pill_reminder.db.init_db        # 建表
-python -m pill_reminder.db.init_db --demo # 建表 + 演示数据
-python -m pill_reminder.db.init_db --check # 只检查连接
+# 在仓库根目录执行
+python -m zhiyao.db.init_db          # 建表
+python -m zhiyao.db.init_db --demo   # 建表 + 演示数据
+python -m zhiyao.db.init_db --check  # 只检查连接
 ```
 
 也可以直接导入 `sql/schema.sql`（纯 DDL，方便交作业/写报告）。
@@ -106,7 +106,7 @@ python -m pill_reminder.db.init_db --check # 只检查连接
 ## 四、代码结构
 
 ```
-pill_reminder/db/
+zhiyao/db/
 ├── __init__.py    对外导出
 ├── base.py        引擎、会话、session_scope()、ping()
 ├── models.py      4 张表的 ORM 定义
@@ -130,11 +130,11 @@ with session_scope() as session:
 
 | 位置 | 改动 |
 |---|---|
-| `reminder/alarm.py` | 新增 `on_fire` 回调参数，闹钟一响就写 `dose_log` |
-| `main.py` | 启动时 `_restore_alarms()` 恢复计划；设置闹钟后 `save_plans()` 落库；新增菜单 7 查看服药记录 |
-| `ai/chat.py` | 每轮问答写 `chat_message`；启动时从库里恢复最近 20 条上下文；`clear_history()` 同时清库 |
-| `app.py` | 新增 11 个 REST 接口；启动时自动装载闹钟 |
-| `index.html` | 新增同步层：进角色时拉 `/api/today`，增删改后整批回写，打卡写 `dose_log` |
+| `zhiyao/reminder/alarm.py` | 新增 `on_fire` 回调参数，闹钟一响就写 `dose_log` |
+| `zhiyao/cli.py` | 启动时 `_restore_alarms()` 恢复计划；设置闹钟后 `save_plans()` 落库；新增菜单 7 查看服药记录 |
+| `zhiyao/ai/chat.py` | 每轮问答写 `chat_message`；启动时从库里恢复最近 20 条上下文；`clear_history()` 同时清库 |
+| `zhiyao/web/app.py` | 新增 11 个 REST 接口；启动时自动装载闹钟 |
+| `zhiyao/web/static/index.html` | 新增同步层：进角色时拉 `/api/today`，增删改后整批回写，打卡写 `dose_log` |
 
 ### 前端同步策略
 
@@ -188,13 +188,13 @@ curl -X POST http://localhost:8000/api/plans \
 ## 七、自测
 
 ```bash
-cd myPythonProject
+# 在仓库根目录执行
 
 # 只测数据库层
 python tests/test_db_smoke.py
 
-# 数据库层 + HTTP 接口（需先启动 app.py）
-python app.py
+# 数据库层 + HTTP 接口（需先启动网页版）
+python -m zhiyao.web.app
 python tests/test_db_smoke.py --http --base http://127.0.0.1:8000
 ```
 

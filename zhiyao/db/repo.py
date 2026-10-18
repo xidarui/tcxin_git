@@ -1,6 +1,6 @@
 """仓储层 — 把「业务语义」翻译成数据库操作
 
-上层（main.py / app.py / ai/chat.py）只调用这里的函数，
+上层（zhiyao.cli / zhiyao.web.app / zhiyao.ai.chat）只调用这里的函数，
 不直接碰 SQL 或 Session，换数据库时只改这一层。
 """
 from __future__ import annotations

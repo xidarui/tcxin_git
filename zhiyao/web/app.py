@@ -1,14 +1,18 @@
 """
-知药 · FastAPI 服务入口
+知药 · FastAPI 服务入口（网页版）
 
-启动方式: python app.py
+启动方式::
+
+    python -m zhiyao.web.app          # 在仓库根目录执行
+
 访问地址: http://localhost:8000
 
 集成了:
-- POST /api/chat  → ai/chat.py  → 星火大模型
-- POST /api/ocr  → ocr/client.py → 讯飞 OCR
-- POST /api/tts  → speech/tts.py → 方言语音合成
+- POST /api/chat   → zhiyao.ai.chat      星火大模型
+- POST /api/ocr    → zhiyao.ocr.client   讯飞 OCR
+- POST /api/tts    → zhiyao.speech.tts   方言语音合成
 - GET  /api/voices → 方言列表
+- 其余 /api/plans /api/logs /api/history 见 zhiyao/db
 """
 import os
 import sys
@@ -16,8 +20,9 @@ import uuid
 import logging
 from datetime import datetime
 
-# 确保能找到 pill_reminder 包
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 支持直接 `python zhiyao/web/app.py` 运行：把仓库根加进 sys.path
+if __package__ in (None, ""):  # pragma: no cover
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, Response
@@ -25,9 +30,10 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import uvicorn
 
+from zhiyao.paths import ENV_FILE, INDEX_HTML
+
 # 先加载 .env，让子模块的 load_dotenv() 继承已有环境变量
-_env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pill_reminder', '.env')
-load_dotenv(_env_path)
+load_dotenv(str(ENV_FILE))
 
 # 检查 API 凭证
 _missing = [k for k in ['APP_ID', 'API_KEY', 'API_SECRET'] if not os.getenv(k)]
@@ -35,11 +41,11 @@ if _missing:
     logging.warning(f"⚠️ .env 缺失凭证: {', '.join(_missing)}，API 调用将返回错误")
 
 # 导入后端模块
-from pill_reminder.ai.chat import chat_with_context, clear_history
-from pill_reminder.ocr.client import universal_ocr
-from pill_reminder.speech.tts import speech_synthesis
-from pill_reminder.db import repo as db_repo
-from pill_reminder.reminder.alarm import AlarmScheduler
+from zhiyao.ai.chat import chat_with_context, clear_history
+from zhiyao.ocr.client import universal_ocr
+from zhiyao.speech.tts import speech_synthesis
+from zhiyao.db import repo as db_repo
+from zhiyao.reminder.alarm import AlarmScheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -209,7 +215,7 @@ def _require_db() -> None:
 @app.get("/")
 def index():
     """返回前端页面"""
-    index_path = os.path.join(os.path.dirname(__file__), 'index.html')
+    index_path = str(INDEX_HTML)
     return FileResponse(index_path)
 
 @app.post("/api/chat", response_model=ChatResponse)

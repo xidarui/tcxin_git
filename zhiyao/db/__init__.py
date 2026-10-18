@@ -2,7 +2,7 @@
 
 对外统一入口::
 
-    from db import repo
+    from zhiyao.db import repo
     repo.init_tables()
     repo.save_plans([...])
 """

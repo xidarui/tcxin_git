@@ -1,11 +1,12 @@
 """数据库 + API 冒烟测试
 
-不依赖 pytest，直接跑::
+不依赖 pytest，在仓库根目录直接跑::
 
     python tests/test_db_smoke.py
 
-加 --http 会额外测试 HTTP 接口（需要先启动 app.py）::
+加 --http 会额外测试 HTTP 接口（需要先启动网页版）::
 
+    python -m zhiyao.web.app
     python tests/test_db_smoke.py --http --base http://127.0.0.1:8000
 """
 from __future__ import annotations
@@ -17,10 +18,10 @@ import sys
 import urllib.error
 import urllib.request
 
-# 允许从 myPythonProject/ 目录直接运行
+# 允许从任意工作目录直接运行：把仓库根加进 sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from pill_reminder.db import ping, repo  # noqa: E402
+from zhiyao.db import ping, repo  # noqa: E402
 
 PASS, FAIL = "[PASS]", "[FAIL]"
 _failures = 0

@@ -7,7 +7,9 @@ import threading
 from dotenv import load_dotenv
 from xfyunsdkspeech.tts_client import TtsClient
 
-load_dotenv()
+from ..paths import ENV_FILE, ensure_output_dir
+
+load_dotenv(str(ENV_FILE))
 
 RATE = 16000
 CHANNELS = 1
@@ -78,7 +80,7 @@ def play_pcm_direct(pcm_data: bytes):
     p.terminate()
 
 
-def speech_synthesis(choose: str, text: str, filename: str = "output.wav", play: bool = True, speed: float = 0.9, volume: float = 0.9) -> str:
+def speech_synthesis(choose: str, text: str, filename: str = None, play: bool = True, speed: float = 0.9, volume: float = 0.9) -> str:
     """语音合成主函数：生成PCM → 保存wav → 声卡播放（可选）
 
     Args:
@@ -87,7 +89,7 @@ def speech_synthesis(choose: str, text: str, filename: str = "output.wav", play:
                 "x2_xiaobao"=内蒙古  "x3_yezi_sc"=四川话  "x4_xiaobei"=东北话
                 "x2_xiaokun"=河南话  "x3_xiaodu"=成都话
         text: 要合成语音的文字
-        filename: 输出wav文件名
+        filename: 输出文件名，默认 assets/output/output.wav
         play: 是否声卡播放（Web API 调用时设为 False）
         speed: 语速 (0.5-1.8)
         volume: 音量 (0.2-1.0)
@@ -98,7 +100,11 @@ def speech_synthesis(choose: str, text: str, filename: str = "output.wav", play:
         if not text or not text.strip():
             raise ValueError("没有要合成的文字内容")
         pcm_bytes = synthesize_to_bytes(choose, text, speed, volume)
-        file_path = os.path.abspath(filename)
+        if filename is None:
+            file_path = str(ensure_output_dir() / "output.wav")
+        else:
+            file_path = os.path.abspath(filename)
+            os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
         with wave.open(file_path, mode="wb") as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(SAMPLE_WIDTH)

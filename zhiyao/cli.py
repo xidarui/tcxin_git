@@ -1,4 +1,9 @@
-"""智能提醒吃药系统 — 主入口"""
+"""知药 · 命令行版入口
+
+启动::
+
+    python -m zhiyao.cli          # 在仓库根目录执行
+"""
 import os
 import sys
 import logging
@@ -8,15 +13,17 @@ from datetime import datetime
 # 屏蔽 langchain 旧版 API 警告（spark-ai-python 依赖的旧版 langchain 触发）
 warnings.filterwarnings("ignore", category=UserWarning, module="langchain")
 
-# 确保能找到同目录下的包
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 支持直接 `python zhiyao/cli.py` 运行：把仓库根加进 sys.path
+if __package__ in (None, ""):  # pragma: no cover
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ocr.client import universal_ocr
-from speech.iat import microphone_stream
-from speech.tts import speech_synthesis
-from ai.chat import chat_with_context, clear_history, analyze_medication_schedule
-from reminder.alarm import AlarmScheduler, parse_schedule
-from db import repo as db_repo
+from zhiyao.ocr.client import universal_ocr
+from zhiyao.speech.iat import microphone_stream
+from zhiyao.speech.tts import speech_synthesis
+from zhiyao.ai.chat import chat_with_context, clear_history, analyze_medication_schedule
+from zhiyao.reminder.alarm import AlarmScheduler, parse_schedule
+from zhiyao.db import repo as db_repo
+from zhiyao.paths import DEFAULT_SAMPLE_IMAGE
 
 # ---------- 日志配置 ----------
 logging.basicConfig(level=logging.INFO)
@@ -125,7 +132,7 @@ def ocr_and_chat():
         speak(reply)
     except FileNotFoundError as e:
         print(f"❌ {e}")
-        print("请确认 picture.jpg 文件存在。")
+        print(f"请确认默认图片存在: {DEFAULT_SAMPLE_IMAGE}")
     except PermissionError as e:
         print(f"❌ {e}")
     except Exception as e:

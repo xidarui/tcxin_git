@@ -1,7 +1,7 @@
 """数据库连接管理 — 引擎 / 会话 / ORM 基类
 
 设计要点：
-1. 所有连接参数都从 pill_reminder/.env 读取，代码里不硬编码密码。
+1. 所有连接参数都从仓库根的 .env 读取，代码里不硬编码密码。
 2. 引擎是「懒加载」的：只有真正执行 SQL 时才建立连接，
    这样数据库没启动也不会导致 import 阶段就崩掉。
 3. 对外主要用 session_scope() 上下文管理器，自动 commit / rollback / close，
@@ -20,14 +20,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
+from ..paths import ENV_EXAMPLE as ENV_EXAMPLE_PATH
+from ..paths import ENV_FILE
+
 logger = logging.getLogger(__name__)
 
-# .env 位于 pill_reminder/ 下，本文件在 pill_reminder/db/ 下，所以往上两级
-_ENV_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"
-)
-_ENV_EXAMPLE = os.path.join(os.path.dirname(_ENV_PATH), ".env.example")
-ENV_EXISTS = os.path.isfile(_ENV_PATH)
+_ENV_PATH = str(ENV_FILE)
+_ENV_EXAMPLE = str(ENV_EXAMPLE_PATH)
+ENV_EXISTS = ENV_FILE.is_file()
 
 load_dotenv(_ENV_PATH)
 
@@ -67,7 +67,7 @@ def env_hint() -> str:
     if not ENV_EXISTS:
         return (
             "缺少配置文件: " + _ENV_PATH + "\n"
-            "  解决: 在 pill_reminder 目录下执行 copy .env.example .env，\n"
+            "  解决: 在仓库根目录执行 copy .env.example .env，\n"
             "        再填入讯飞 APP_ID/API_KEY/API_SECRET 和数据库密码"
         )
 

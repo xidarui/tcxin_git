@@ -2,10 +2,10 @@
 
 用法::
 
-    python -m pill_reminder.db.init_db          # 建表
-    python -m pill_reminder.db.init_db --demo   # 建表 + 塞几条演示数据
-    python -m pill_reminder.db.init_db --check  # 只测连接和表状态
-    python -m pill_reminder.db.init_db --reset  # 删表重建（会影响已有数据）
+    python -m zhiyao.db.init_db          # 建表
+    python -m zhiyao.db.init_db --demo   # 建表 + 塞几条演示数据
+    python -m zhiyao.db.init_db --check  # 只测连接和表状态
+    python -m zhiyao.db.init_db --reset  # 删表重建（会影响已有数据）
 
 注意：输出刻意只用 ASCII 标记（OK / FAIL / WARN），
 因为 Windows 控制台默认是 GBK，打 emoji 会直接抛 UnicodeEncodeError。
